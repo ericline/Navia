@@ -1,0 +1,17 @@
+# Create a virtual environment
+
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1
+
+# Running the backend
+
+    uvicorn main:app --reload --port 8000
+    http://127.0.0.1:8000/health
+    Stop the server with Ctrl+C in the terminal
+
+
+# Running the frontend
+
+    npm run dev
+    http://localhost:3000
+    Stop the server with Ctrl+C in the terminal
