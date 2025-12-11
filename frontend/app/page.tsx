@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchTrips, createTrip, Trip } from "@/lib/api";
+import Link from "next/link";
 
 export default function HomePage() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -133,6 +134,12 @@ export default function HomePage() {
                       {trip.destination} • {trip.start_date} → {trip.end_date}
                     </div>
                   </div>
+                  <Link
+                    href={`/trips/${trip.id}`}
+                    className="text-emerald-400 hover:text-emerald-300 text-xs font-medium underline"
+                  >
+                    View details
+                  </Link>
                 </li>
               ))}
             </ul>

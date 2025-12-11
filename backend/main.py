@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine
-from routers import trips
+from routers import trips, days, activities
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -31,3 +31,5 @@ def health_check():
     return {"status": "ok"}
 
 app.include_router(trips.router)
+app.include_router(days.router)
+app.include_router(activities.router)

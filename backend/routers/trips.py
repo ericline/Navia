@@ -34,3 +34,12 @@ def read_trip(trip_id: int, db: Session = Depends(get_db)):
 @router.post("/", response_model=schemas.Trip)
 def create_trip(trip: schemas.TripCreate, db: Session = Depends(get_db)):
     return crud.create_trip(db=db, trip=trip)
+
+@router.post("/{trip_id}/generate-days", response_model=List[schemas.Day])
+def generate_days_for_trip(trip_id: int, db: Session = Depends(get_db)):
+    trip = crud.get_trip(db, trip_id=trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    days = crud.generate_days_for_trip(db, trip)
+    return days
