@@ -20,7 +20,7 @@ export default function HomePage() {
         const data = await fetchTrips();
         setTrips(data);
       } catch (err) {
-        setError("Failed to load trips");
+        setError("Failed to load trips: " + err);
       } finally {
         setLoading(false);
       }
@@ -46,7 +46,7 @@ export default function HomePage() {
       setStartDate("");
       setEndDate("");
     } catch (err) {
-      setError("Failed to create trip");
+      setError("Failed to create trip: " + err);
     }
   }
 
