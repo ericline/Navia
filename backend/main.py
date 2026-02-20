@@ -30,6 +30,10 @@ app.add_middleware(
 def health_check():
     return {"status": "ok"}
 
+@app.get("/")
+def root():
+    return {"message": "Navia API is running. Visit /docs for Swagger UI."}
+
 app.include_router(trips.router)
 app.include_router(days.router)
 app.include_router(activities.router)
