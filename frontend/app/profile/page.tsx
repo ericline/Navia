@@ -1,7 +1,4 @@
-import BubbleCard from "@/components/BubbleCard";
-
 export default function ProfilePage() {
-  // Placeholder until you add auth/user DB
   const user = {
     name: "Eric Lin",
     email: "eric@example.com",
@@ -9,30 +6,53 @@ export default function ProfilePage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Profile</h1>
-        <p className="text-sm text-slate-300 mt-1">
-          User settings and preferences will live here (day start/end time, pacing, budget goals, etc.).
-        </p>
-      </div>
+    <div className="relative min-h-screen">
+      <div
+        className="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/background.jpg')" }}
+      />
+      <div className="fixed inset-0 -z-10 bg-darkBlue/40" />
 
-      <BubbleCard title="Account" subtitle="Basic info (for now)">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-            <div className="text-xs text-slate-300">Name</div>
-            <div className="mt-1 font-medium">{user.name}</div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-            <div className="text-xs text-slate-300">Email</div>
-            <div className="mt-1 font-medium">{user.email}</div>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-            <div className="text-xs text-slate-300">Birthday</div>
-            <div className="mt-1 font-medium">{user.birthday}</div>
-          </div>
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold text-white/95 tracking-tight">
+            Profile
+          </h1>
+          <p className="text-white/50 mt-1 text-sm">
+            Settings and preferences will live here
+          </p>
         </div>
-      </BubbleCard>
-    </main>
+
+        <section className="glass rounded-2xl p-6 space-y-4">
+          <h2 className="text-sm font-semibold text-white/70">Account</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { label: "Name", value: user.name },
+              { label: "Email", value: user.email },
+              { label: "Birthday", value: user.birthday },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-4"
+              >
+                <div className="text-xs text-white/40">{label}</div>
+                <div className="mt-1 text-sm font-medium text-white/85">
+                  {value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="glass rounded-2xl p-6">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">
+            Preferences
+          </h2>
+          <p className="text-xs text-white/30 text-center py-6">
+            Day start/end time, pacing, budget goals and more — coming soon
+          </p>
+        </section>
+      </main>
+    </div>
   );
 }

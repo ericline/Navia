@@ -3,6 +3,10 @@
     python -m venv .venv
     .venv\Scripts\Activate.ps1
 
+    MacOS: 
+    python3.11 -m venv .venv
+    source .venv/bin/activate
+
 # Running the backend
 
     uvicorn main:app --reload --port 8000

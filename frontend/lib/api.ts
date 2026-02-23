@@ -101,6 +101,16 @@ export async function createTrip(data: TripCreate): Promise<Trip> {
   return res.json();
 }
 
+export async function deleteTrip(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/trips/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    console.error("deleteTrip failed", res.status, await res.text());
+    throw new Error("Failed to delete trip");
+  }
+}
+
 export async function generateDaysForTrip(tripId: number): Promise<Day[]> {
   const res = await fetch(`${API_BASE_URL}/trips/${tripId}/generate-days`, {
     method: "POST",

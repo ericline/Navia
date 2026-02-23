@@ -43,3 +43,11 @@ def generate_days_for_trip(trip_id: int, db: Session = Depends(get_db)):
 
     days = crud.generate_days_for_trip(db, trip)
     return days
+
+@router.delete("/{trip_id}", status_code=204)
+def delete_trip(trip_id: int, db: Session = Depends(get_db)):
+    trip = crud.get_trip(db, trip_id=trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    db.delete(trip)
+    db.commit()

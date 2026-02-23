@@ -9,13 +9,11 @@ export default function BubbleCard({
   subtitle?: string;
   children: React.ReactNode;
   className?: string;
-  accent?: "none" | "gold" | "honey";
+  accent?: "none" | "blue";
 }) {
   const accentRing =
-    accent === "gold"
-      ? "hover:border-gold/40 hover:shadow-[0_0_0_1px_rgba(255,208,70,0.25)]"
-      : accent === "honey"
-      ? "hover:border-honey/40 hover:shadow-[0_0_0_1px_rgba(236,164,0,0.25)]"
+    accent === "blue"
+      ? "hover:border-blue/40 hover:shadow-[0_0_0_1px_rgba(75,134,180,0.25)]"
       : "hover:border-lightBlue/25";
 
   return (
