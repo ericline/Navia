@@ -1,10 +1,17 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand palette */
   --darkBlue: 43 65 98;
   --lightBlue: 149 184 209;
   --pink: 184 107 119;
   --blue: 75 134 180;
+
+  /* Surface palette (warm light theme) */
+  --warmBg: 250 248 246;
+  --warmSurface: 241 235 230;
+  --warmCard: 240 229 196;
+  --coolCard: 224 235 244;
 }
 
 @theme inline {
@@ -17,13 +24,11 @@
   --color-lightBlue: rgb(var(--lightBlue));
   --color-pink: rgb(var(--pink));
   --color-blue: rgb(var(--blue));
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-warmBg: rgb(var(--warmBg));
+  --color-warmSurface: rgb(var(--warmSurface));
+  --color-warmCard: rgb(var(--warmCard));
+  --color-coolCard: rgb(var(--coolCard));
 }
 
 html, body {
@@ -31,50 +36,41 @@ html, body {
 }
 
 body {
-  background-color: rgb(var(--darkBlue));
+  background-color: rgb(var(--warmBg));
   background-image:
-    radial-gradient(1200px 600px at 20% 0%, rgb(var(--lightBlue) / 0.08), transparent 60%),
-    radial-gradient(900px 500px at 90% 10%, rgb(var(--blue) / 0.07), transparent 55%);
+    radial-gradient(900px 500px at 80% 10%, rgb(var(--lightBlue) / 0.07), transparent 60%),
+    radial-gradient(700px 400px at 10% 80%, rgb(var(--pink) / 0.04), transparent 55%);
 }
 
-/* ---- Liquid glass ---- */
+/* ---- Liquid glass (light mode) ---- */
 
+/* .glass provides visual effects only — pair with a bg-* color class */
 .glass {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.07) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.07);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    0 4px 24px rgba(0, 0, 0, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
 .glass-subtle {
-  background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(0, 0, 0, 0.10);
   transition: all 0.2s;
 }
 
 .glass-input:focus {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 0 0 3px rgba(75, 134, 180, 0.08);
+  background: rgba(255, 255, 255, 0.90);
+  border-color: rgb(var(--blue) / 0.30);
+  box-shadow: 0 0 0 3px rgb(var(--blue) / 0.08);
   outline: none;
-}
-
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7);
 }
 
 /* Scrollbar */
@@ -88,10 +84,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 2px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.20);
 }

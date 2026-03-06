@@ -21,9 +21,17 @@ import {
   fetchActivitiesForTrip,
   createTrip,
 } from "@/lib/api";
+import {
+  formatDate,
+  daysUntil,
+  isPastTrip,
+  isCurrentOrUpcoming,
+  sortByStartAsc,
+} from "@/lib/utils";
+import LocationAutocomplete from "@/components/LocationAutocomplete";
 
 /* ------------------------------------------------------------------ */
-/*  Types & helpers                                                    */
+/*  Types                                                               */
 /* ------------------------------------------------------------------ */
 
 type BucketItem = {
@@ -32,47 +40,6 @@ type BucketItem = {
   location: string;
   notes: string;
 };
-
-function isPastTrip(trip: Trip) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(trip.end_date);
-  end.setHours(0, 0, 0, 0);
-  return end.getTime() < today.getTime();
-}
-
-function isCurrentOrUpcoming(trip: Trip) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const end = new Date(trip.end_date);
-  end.setHours(0, 0, 0, 0);
-  return end.getTime() >= today.getTime();
-}
-
-function sortByStartAsc(a: Trip, b: Trip) {
-  return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
-}
-
-function formatDate(iso: string) {
-  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function daysUntil(iso: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(iso + "T00:00:00");
-  target.setHours(0, 0, 0, 0);
-  const diff = Math.ceil(
-    (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  if (diff < 0) return "Ongoing";
-  return `In ${diff} days`;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Upcoming trip card (expandable)                                    */
@@ -112,10 +79,8 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
     return map;
   }, [acts]);
 
-  const countdown = daysUntil(trip.start_date);
-
   return (
-    <div className="glass-subtle rounded-2xl overflow-hidden transition-all duration-200 hover:bg-white/[0.06]" style={{ background: '#f0e5c4' }}>
+    <div className="glass-subtle bg-warmCard rounded-2xl overflow-hidden transition-all duration-200 hover:bg-warmCard/80">
       <button
         onClick={toggle}
         className="w-full text-left p-4 flex items-start gap-4"
@@ -126,7 +91,7 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-medium text-black/85 truncate">{trip.name}</h3>
             <span className="text-[11px] text-pink shrink-0">
-              {countdown}
+              {daysUntil(trip.start_date)}
             </span>
           </div>
           <div className="flex items-center gap-1.5 mt-1">
@@ -149,14 +114,12 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
 
       {open && (
         <div className="px-4 pb-4">
-          <div className="border-t border-white/[0.06] pt-3">
+          <div className="border-t border-black/[0.06] pt-3">
             {loading ? (
               <p className="text-xs text-black/40">Loading days...</p>
             ) : days.length === 0 ? (
               <div className="text-center py-3">
-                <p className="text-xs text-black/40">
-                  No days generated yet
-                </p>
+                <p className="text-xs text-black/40">No days generated yet</p>
                 <button
                   onClick={() => router.push(`/trips/${trip.id}`)}
                   className="mt-2 text-xs text-blue/70 hover:text-blue/90 transition"
@@ -175,7 +138,7 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
                   .map((d) => (
                     <div
                       key={d.id}
-                      className="flex items-center justify-between rounded-xl bg-white/[0.03] px-3 py-2"
+                      className="flex items-center justify-between rounded-xl bg-black/[0.04] px-3 py-2"
                     >
                       <div>
                         <span className="text-xs text-black/65">
@@ -306,23 +269,17 @@ export default function HomePage() {
   }
 
   return (
-    <div className="relative min-h-screen">
-      <div
-        className="fixed inset-0 -z-10"
-        style={{ backgroundColor: "#faf8f6" }}
-      />
-
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* ---- Hero ---- */}
-      <section className="glass rounded-3xl p-8 md:p-10 relative overflow-hidden" style={{ background: '#f1ebe6' }}>
+      <section className="glass bg-warmSurface rounded-3xl p-8 md:p-10 relative overflow-hidden">
         <div className="absolute -top-20 left-1/4 w-80 h-80 bg-lightBlue/8 rounded-full blur-[80px] pointer-events-none" />
         <div className="absolute -bottom-16 right-1/3 w-60 h-60 bg-blue/6 rounded-full blur-[60px] pointer-events-none" />
 
         <div className="relative">
-          <h1 className="text-3xl md:text-4xl tracking-tight" style={{ color: '#4b86b4' }}>
+          <h1 className="text-3xl md:text-4xl tracking-tight text-blue">
             Where to next?
           </h1>
-          <p className="mt-2 text-sm" style={{ color: '#4b86b4', opacity: 0.65 }}>
+          <p className="mt-2 text-sm text-blue/65">
             Plan your perfect trip with AI-powered scheduling
           </p>
 
@@ -340,15 +297,14 @@ export default function HomePage() {
 
             {/* Destination + dates + button */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <div className="flex-1 relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40" />
-                <input
-                  className="glass-input w-full rounded-xl pl-10 pr-4 py-3 text-sm text-black/85 placeholder:text-black/30"
-                  value={dest}
-                  onChange={(e) => setDest(e.target.value)}
-                  placeholder="Destination"
-                />
-              </div>
+              <LocationAutocomplete
+                value={dest}
+                onChange={setDest}
+                placeholder="Destination"
+                containerClassName="flex-1"
+                className="glass-input w-full rounded-xl pl-10 pr-4 py-3 text-sm text-black/85 placeholder:text-black/30"
+                icon={<MapPin className="h-4 w-4 text-black/40" />}
+              />
 
               <div className="flex gap-3 sm:contents">
                 <div className="flex-1 sm:w-36 relative">
@@ -376,7 +332,7 @@ export default function HomePage() {
                 disabled={creating || !tripName.trim() || !dest.trim() || !start || !end}
                 className="rounded-xl bg-blue/90 hover:bg-blue px-5 py-3 text-sm font-semibold text-white transition flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <span className="sm:hidden">{creating ? "Creating..." : "Start Planning"}</span>
+                <span>{creating ? "Creating..." : "Start Planning"}</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -404,16 +360,14 @@ export default function HomePage() {
         </div>
 
         {loadingTrips ? (
-          <div className="glass-subtle rounded-2xl p-8 text-center" style={{ background: '#f1ebe6' }}>
+          <div className="glass-subtle bg-warmSurface rounded-2xl p-8 text-center">
             <p className="text-sm text-black/40">Loading trips...</p>
           </div>
         ) : currentTrips.length === 0 ? (
-          <div className="glass-subtle rounded-2xl p-8 text-center" style={{ background: '#f1ebe6' }}>
+          <div className="glass-subtle bg-warmSurface rounded-2xl p-8 text-center">
             <Plane className="h-8 w-8 text-black/20 mx-auto mb-3" />
             <p className="text-sm text-black/40">No upcoming trips</p>
-            <p className="text-xs text-black/25 mt-1">
-              Create your first trip above
-            </p>
+            <p className="text-xs text-black/25 mt-1">Create your first trip above</p>
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -427,7 +381,7 @@ export default function HomePage() {
       {/* ---- Past Trips & Bucket List ---- */}
       <div className="grid gap-6 lg:grid-cols-2 items-start">
         {/* Past Trips */}
-        <section className="glass rounded-2xl p-5" style={{ background: '#e0ebf4' }}>
+        <section className="glass bg-coolCard rounded-2xl p-5">
           <h2 className="text-sm font-semibold text-black/75 mb-3 flex items-center gap-2">
             Past Trips
             {pastTrips.length > 0 && (
@@ -449,13 +403,11 @@ export default function HomePage() {
                 <button
                   key={t.id}
                   onClick={() => router.push(`/trips/${t.id}`)}
-                  className="w-full text-left rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition p-3 flex items-center gap-3"
+                  className="w-full text-left rounded-xl bg-black/[0.03] hover:bg-black/[0.06] transition p-3 flex items-center gap-3"
                 >
                   <div className="h-2 w-2 rounded-full bg-pink/30 shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm text-black/65 truncate">
-                      {t.name}
-                    </div>
+                    <div className="text-sm text-black/65 truncate">{t.name}</div>
                     <div className="text-[11px] text-black/35">
                       {t.destination} · {formatDate(t.start_date)} —{" "}
                       {formatDate(t.end_date)}
@@ -468,7 +420,7 @@ export default function HomePage() {
         </section>
 
         {/* Bucket List */}
-        <section className="glass rounded-2xl p-5" style={{ background: '#e0ebf4' }}>
+        <section className="glass bg-coolCard rounded-2xl p-5">
           <h2 className="text-sm font-semibold text-black/75 mb-3 flex items-center gap-2">
             Bucket List
             {bucket.length > 0 && (
@@ -485,27 +437,21 @@ export default function HomePage() {
               </p>
             ) : (
               bucket.map((b) => (
-                <div
-                  key={b.id}
-                  className="rounded-xl bg-white/[0.03] p-3 group"
-                >
+                <div key={b.id} className="rounded-xl bg-black/[0.03] p-3 group">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <input
                         className="bg-transparent text-sm text-black/75 w-full focus:outline-none truncate"
                         value={b.name}
-                        onChange={(e) =>
-                          updateBucket(b.id, { name: e.target.value })
-                        }
+                        onChange={(e) => updateBucket(b.id, { name: e.target.value })}
                       />
                       <div className="flex items-center gap-1 mt-0.5">
                         <MapPin className="h-2.5 w-2.5 text-black/30 shrink-0" />
-                        <input
-                          className="bg-transparent text-[11px] text-black/40 w-full focus:outline-none"
+                        <LocationAutocomplete
                           value={b.location}
-                          onChange={(e) =>
-                            updateBucket(b.id, { location: e.target.value })
-                          }
+                          onChange={(val) => updateBucket(b.id, { location: val })}
+                          containerClassName="flex-1 min-w-0"
+                          className="bg-transparent text-[11px] text-black/40 w-full focus:outline-none"
                         />
                       </div>
                     </div>
@@ -519,9 +465,7 @@ export default function HomePage() {
                   <textarea
                     className="mt-1.5 w-full bg-transparent text-[11px] text-black/30 resize-none focus:outline-none"
                     value={b.notes}
-                    onChange={(e) =>
-                      updateBucket(b.id, { notes: e.target.value })
-                    }
+                    onChange={(e) => updateBucket(b.id, { notes: e.target.value })}
                     rows={1}
                     placeholder="Notes..."
                   />
@@ -531,7 +475,7 @@ export default function HomePage() {
           </div>
 
           {/* Add new bucket item */}
-          <div className="rounded-xl bg-white/[0.03] p-3 space-y-2">
+          <div className="rounded-xl bg-black/[0.03] p-3 space-y-2">
             <div className="flex gap-2">
               <input
                 className="glass-input flex-1 rounded-lg px-3 py-1.5 text-xs text-black/75 placeholder:text-black/40"
@@ -539,11 +483,12 @@ export default function HomePage() {
                 onChange={(e) => setNewBucketName(e.target.value)}
                 placeholder="Activity name"
               />
-              <input
-                className="glass-input flex-1 rounded-lg px-3 py-1.5 text-xs text-black/75 placeholder:text-black/40"
+              <LocationAutocomplete
                 value={newBucketLoc}
-                onChange={(e) => setNewBucketLoc(e.target.value)}
+                onChange={setNewBucketLoc}
                 placeholder="Location"
+                containerClassName="flex-1"
+                className="glass-input w-full rounded-lg px-3 py-1.5 text-xs text-black/75 placeholder:text-black/40"
               />
             </div>
             <div className="flex gap-2">
@@ -555,7 +500,7 @@ export default function HomePage() {
               />
               <button
                 onClick={addBucket}
-                className="rounded-lg bg-pink/30 hover:bg-pink/50 border border-pink/40 px-3 py-1.5 text-xs text-pink hover:text-pink transition flex items-center gap-1"
+                className="rounded-lg bg-pink/30 hover:bg-pink/50 border border-pink/40 px-3 py-1.5 text-xs text-pink transition flex items-center gap-1"
               >
                 <Plus className="h-3 w-3" />
                 Add
@@ -565,6 +510,5 @@ export default function HomePage() {
         </section>
       </div>
     </main>
-    </div>
   );
 }

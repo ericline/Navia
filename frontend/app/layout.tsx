@@ -57,7 +57,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen text-slate-50 bg-darkBlue">
+      <body className="min-h-screen text-black/85">
         <TopNav />
         {children}
       </body>
