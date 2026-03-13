@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import WorldMap, { MapMarker } from "@/components/WorldMap";
 import { fetchTrips, fetchActivitiesForTrip } from "@/lib/api";
 import { isPastTrip } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Broad administrative types — drill into activity addresses instead of marking the destination itself
 const BROAD_TYPES = new Set(["country", "region"]);
@@ -34,16 +36,21 @@ async function geocodePlace(
 }
 
 export default function ProfilePage() {
-  const user = {
-    name: "Eric Lin",
-    email: "eric@example.com",
-    birthday: "2002-01-01",
-  };
+  const router = useRouter();
+  const { user, isLoading } = useAuth();
 
   const [markers, setMarkers] = useState<MapMarker[]>([]);
   const [loadingMap, setLoadingMap] = useState(true);
 
+  // Redirect to login if not authenticated
   useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login?redirect=/profile");
+    }
+  }, [user, isLoading, router]);
+
+  useEffect(() => {
+    if (!user) return;
     const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
     if (!token) {
       setLoadingMap(false);
@@ -59,7 +66,6 @@ export default function ProfilePage() {
         const seenKeys = new Set<string>();
 
         function addPoint(lng: number, lat: number, name: string) {
-          // Deduplicate within ~11 km (0.1° grid) to avoid stacked markers
           const key = `${Math.round(lng * 10)},${Math.round(lat * 10)}`;
           if (!seenKeys.has(key)) {
             seenKeys.add(key);
@@ -74,11 +80,9 @@ export default function ProfilePage() {
           if (!result) continue;
 
           if (BROAD_TYPES.has(result.placeType)) {
-            // Country or province — mark cities from activity addresses instead
             const activities = await fetchActivitiesForTrip(trip.id);
             for (const act of activities) {
               if (act.lat != null && act.lng != null) {
-                // Use pre-stored coordinates if available
                 addPoint(act.lng, act.lat, act.address ?? act.name);
               } else if (act.address) {
                 const actResult = await geocodePlace(act.address, token);
@@ -88,7 +92,6 @@ export default function ProfilePage() {
               }
             }
           } else {
-            // City, town, locality, landmark — mark the destination directly
             addPoint(result.lng, result.lat, trip.destination);
           }
         }
@@ -98,7 +101,17 @@ export default function ProfilePage() {
         setLoadingMap(false);
       }
     })();
-  }, []);
+  }, [user]);
+
+  if (isLoading || !user) return null;
+
+  const formattedBirthday = user.birthday
+    ? new Date(user.birthday + "T00:00:00").toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "—";
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
@@ -118,7 +131,7 @@ export default function ProfilePage() {
           {[
             { label: "Name", value: user.name },
             { label: "Email", value: user.email },
-            { label: "Birthday", value: user.birthday },
+            { label: "Birthday", value: formattedBirthday },
           ].map(({ label, value }) => (
             <div
               key={label}

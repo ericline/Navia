@@ -4,25 +4,68 @@ from sqlalchemy.orm import Session
 
 import models
 import schemas
+from auth import hash_password
+
+
+# ---------- User CRUD ----------
+
+def get_user_by_email(db: Session, email: str) -> models.User | None:
+    return db.query(models.User).filter(models.User.email == email).first()
+
+
+def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
+    db_user = models.User(
+        name=user_in.name,
+        email=user_in.email,
+        hashed_password=hash_password(user_in.password),
+        birthday=user_in.birthday,
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 
 # ---------- Trip CRUD ----------
 
-def get_trips(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Trip).offset(skip).limit(limit).all()
+def get_trips_for_user(db: Session, user_id: int, skip: int = 0, limit: int = 100):
+    """Return trips owned by the user, plus trips where they are a collaborator."""
+    owned = (
+        db.query(models.Trip)
+        .filter(models.Trip.owner_id == user_id)
+        .all()
+    )
+    collab_ids = {
+        row.trip_id
+        for row in db.query(models.TripCollaborator)
+        .filter(models.TripCollaborator.user_id == user_id)
+        .all()
+    }
+    collab_trips = (
+        db.query(models.Trip)
+        .filter(models.Trip.id.in_(collab_ids))
+        .all()
+        if collab_ids
+        else []
+    )
+    all_trips = {t.id: t for t in owned + collab_trips}
+    trips = list(all_trips.values())
+    trips.sort(key=lambda t: t.id)
+    return trips[skip : skip + limit]
 
 
 def get_trip(db: Session, trip_id: int):
     return db.query(models.Trip).filter(models.Trip.id == trip_id).first()
 
 
-def create_trip(db: Session, trip: schemas.TripCreate):
+def create_trip(db: Session, trip: schemas.TripCreate, owner_id: int):
     db_trip = models.Trip(
         name=trip.name,
         destination=trip.destination,
         start_date=trip.start_date,
         end_date=trip.end_date,
         timezone=trip.timezone,
+        owner_id=owner_id,
     )
     db.add(db_trip)
     db.commit()
@@ -92,7 +135,6 @@ def get_activity(db: Session, activity_id: int):
 
 
 def create_activity(db: Session, activity: schemas.ActivityCreate):
-    # Default: None for time length, 0 for cost if not provided
     cost = activity.cost_estimate if activity.cost_estimate is not None else 0.0
 
     db_activity = models.Activity(

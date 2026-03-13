@@ -7,10 +7,28 @@ from sqlalchemy import (
     ForeignKey,
     Boolean,
     Float,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
 from database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    birthday = Column(Date, nullable=True)
+
+    owned_trips = relationship(
+        "Trip",
+        back_populates="owner",
+        foreign_keys="[Trip.owner_id]",
+    )
+    collaborations = relationship("TripCollaborator", back_populates="user")
 
 
 class Trip(Base):
@@ -23,7 +41,18 @@ class Trip(Base):
     end_date = Column(Date)
     timezone = Column(String, default="America/New_York")
 
+    # Auth: nullable so existing rows don't break before migration
+    owner_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # Relationships
+    owner = relationship("User", back_populates="owned_trips", foreign_keys=[owner_id])
+    collaborators = relationship(
+        "TripCollaborator",
+        back_populates="trip",
+        cascade="all, delete-orphan",
+    )
     days = relationship(
         "Day",
         back_populates="trip",
@@ -36,13 +65,28 @@ class Trip(Base):
     )
 
 
+class TripCollaborator(Base):
+    """Future: allows sharing trips between users."""
+    __tablename__ = "trip_collaborators"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role = Column(String, default="editor")  # "editor" | "viewer"
+
+    __table_args__ = (UniqueConstraint("trip_id", "user_id", name="uq_trip_collaborator"),)
+
+    trip = relationship("Trip", back_populates="collaborators")
+    user = relationship("User", back_populates="collaborations")
+
+
 class Day(Base):
     __tablename__ = "days"
 
     id = Column(Integer, primary_key=True, index=True)
     trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True)
     date = Column(Date, nullable=False)
-    name = Column(String, nullable=True)   # e.g., "Arrival Day", "Day 1"
+    name = Column(String, nullable=True)
     notes = Column(String, nullable=True)
 
     # Relationships
@@ -63,16 +107,15 @@ class Activity(Base):
     day_id = Column(Integer, ForeignKey("days.id", ondelete="SET NULL"), nullable=True, index=True)
 
     name = Column(String, index=True, nullable=False)
-    category = Column(String, nullable=True)   # e.g., "food", "museum", "hike"
+    category = Column(String, nullable=True)
     address = Column(String, nullable=True)
 
-    # For later when we add maps & routing
     lat = Column(Float, nullable=True)
     lng = Column(Float, nullable=True)
 
     est_duration_minutes = Column(Integer, nullable=True)
-    cost_estimate = Column(Float, nullable=True)  # simple number for now
-    energy_level = Column(String, nullable=True)   # e.g., "low", "medium", "high"
+    cost_estimate = Column(Float, nullable=True)
+    energy_level = Column(String, nullable=True)
     must_do = Column(Boolean, default=False)
 
     # Relationships

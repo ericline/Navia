@@ -10,13 +10,23 @@ import {
   isCurrentOrUpcoming,
   sortByStartAsc,
 } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function CurrentTripsPage() {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/login?redirect=/current-trips");
+    }
+  }, [user, isLoading, router]);
 
   useEffect(() => {
+    if (!user) return;
     (async () => {
       try {
         setLoading(true);
@@ -25,12 +35,14 @@ export default function CurrentTripsPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [user]);
 
   const currentTrips = useMemo(
     () => trips.filter(isCurrentOrUpcoming).sort(sortByStartAsc),
     [trips]
   );
+
+  if (isLoading || !user) return null;
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">

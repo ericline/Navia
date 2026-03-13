@@ -1,6 +1,14 @@
 // frontend/lib/api.ts
 const API_BASE_URL = "http://localhost:8000";
 
+// ---------- Auth helpers ----------
+
+function authHeaders(): HeadersInit {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("navia_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // ---------- Types ----------
 
 export interface Trip {
@@ -70,7 +78,9 @@ export interface ActivityCreate {
 // ---------- Trip API ----------
 
 export async function fetchTrips(): Promise<Trip[]> {
-  const res = await fetch(`${API_BASE_URL}/trips/`);
+  const res = await fetch(`${API_BASE_URL}/trips/`, {
+    headers: { ...authHeaders() },
+  });
   if (!res.ok) {
     console.error("fetchTrips failed", res.status, await res.text());
     throw new Error("Failed to fetch trips");
@@ -79,7 +89,9 @@ export async function fetchTrips(): Promise<Trip[]> {
 }
 
 export async function fetchTrip(id: number): Promise<Trip> {
-  const res = await fetch(`${API_BASE_URL}/trips/${id}`);
+  const res = await fetch(`${API_BASE_URL}/trips/${id}`, {
+    headers: { ...authHeaders() },
+  });
   if (!res.ok) {
     console.error("fetchTrip failed", res.status, await res.text());
     throw new Error("Failed to fetch trip");
@@ -90,7 +102,7 @@ export async function fetchTrip(id: number): Promise<Trip> {
 export async function createTrip(data: TripCreate): Promise<Trip> {
   const res = await fetch(`${API_BASE_URL}/trips/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(data),
   });
 
@@ -104,6 +116,7 @@ export async function createTrip(data: TripCreate): Promise<Trip> {
 export async function deleteTrip(id: number): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/trips/${id}`, {
     method: "DELETE",
+    headers: { ...authHeaders() },
   });
   if (!res.ok) {
     console.error("deleteTrip failed", res.status, await res.text());
@@ -114,6 +127,7 @@ export async function deleteTrip(id: number): Promise<void> {
 export async function generateDaysForTrip(tripId: number): Promise<Day[]> {
   const res = await fetch(`${API_BASE_URL}/trips/${tripId}/generate-days`, {
     method: "POST",
+    headers: { ...authHeaders() },
   });
   if (!res.ok) {
     console.error("generateDaysForTrip failed", res.status, await res.text());
@@ -125,7 +139,9 @@ export async function generateDaysForTrip(tripId: number): Promise<Day[]> {
 // ---------- Days API ----------
 
 export async function fetchDaysForTrip(tripId: number): Promise<Day[]> {
-  const res = await fetch(`${API_BASE_URL}/days/trip/${tripId}`);
+  const res = await fetch(`${API_BASE_URL}/days/trip/${tripId}`, {
+    headers: { ...authHeaders() },
+  });
   if (!res.ok) {
     console.error("fetchDaysForTrip failed", res.status, await res.text());
     throw new Error("Failed to fetch days");
@@ -136,7 +152,7 @@ export async function fetchDaysForTrip(tripId: number): Promise<Day[]> {
 export async function createDay(data: DayCreate): Promise<Day> {
   const res = await fetch(`${API_BASE_URL}/days/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -151,7 +167,9 @@ export async function createDay(data: DayCreate): Promise<Day> {
 export async function fetchActivitiesForTrip(
   tripId: number
 ): Promise<Activity[]> {
-  const res = await fetch(`${API_BASE_URL}/activities/trip/${tripId}`);
+  const res = await fetch(`${API_BASE_URL}/activities/trip/${tripId}`, {
+    headers: { ...authHeaders() },
+  });
   if (!res.ok) {
     console.error(
       "fetchActivitiesForTrip failed",
@@ -168,7 +186,7 @@ export async function createActivity(
 ): Promise<Activity> {
   const res = await fetch(`${API_BASE_URL}/activities/`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       ...data,
       must_do: data.must_do ?? false,

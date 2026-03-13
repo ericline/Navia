@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine
-from routers import trips, days, activities
+from routers import trips, days, activities, auth
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -20,10 +20,10 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,        # or ["*"] during dev if you want
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],          # allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],          # allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.get("/health")
@@ -34,6 +34,7 @@ def health_check():
 def root():
     return {"message": "Navia API is running. Visit /docs for Swagger UI."}
 
+app.include_router(auth.router)
 app.include_router(trips.router)
 app.include_router(days.router)
 app.include_router(activities.router)

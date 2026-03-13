@@ -5,6 +5,35 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
+# ---------- User / Auth Schemas ----------
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    password: str
+    birthday: Optional[date] = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    birthday: Optional[date] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserOut
+
+
 # ---------- Trip Schemas ----------
 
 class TripBase(BaseModel):
@@ -22,7 +51,6 @@ class TripCreate(TripBase):
 class Trip(TripBase):
     id: int
 
-    # Pydantic v2 way to allow reading from ORM objects
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -31,7 +59,7 @@ class Trip(TripBase):
 class DayBase(BaseModel):
     trip_id: int
     date: date
-    name: Optional[str] = None      # e.g., "Day 1", "Arrival Day"
+    name: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -52,7 +80,7 @@ class ActivityBase(BaseModel):
     day_id: Optional[int] = None
 
     name: str
-    category: Optional[str] = None      # "food", "museum", etc.
+    category: Optional[str] = None
     address: Optional[str] = None
 
     lat: Optional[float] = None
@@ -60,7 +88,7 @@ class ActivityBase(BaseModel):
 
     est_duration_minutes: Optional[int] = None
     cost_estimate: Optional[float] = None
-    energy_level: Optional[str] = None   # "low", "medium", "high"
+    energy_level: Optional[str] = None
     must_do: bool = False
 
 
