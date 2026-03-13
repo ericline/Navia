@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   MapPin,
-  Calendar,
   ChevronDown,
   ChevronRight,
   Plus,
@@ -29,6 +28,7 @@ import {
   sortByStartAsc,
 } from "@/lib/utils";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
+import DatePicker from "@/components/DatePicker";
 import { useAuth } from "@/contexts/AuthContext";
 
 /* ------------------------------------------------------------------ */
@@ -267,24 +267,18 @@ function HeroWidget() {
             />
 
             <div className="flex gap-3 sm:contents">
-              <div className="flex-1 sm:w-36 relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/30 pointer-events-none" />
-                <input
-                  type="date"
-                  className="glass-input w-full rounded-xl pl-10 pr-3 py-3 text-sm text-black/85"
-                  value={start}
-                  onChange={(e) => setStart(e.target.value)}
-                />
-              </div>
-              <div className="flex-1 sm:w-36 relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/30 pointer-events-none" />
-                <input
-                  type="date"
-                  className="glass-input w-full rounded-xl pl-10 pr-3 py-3 text-sm text-black/85"
-                  value={end}
-                  onChange={(e) => setEnd(e.target.value)}
-                />
-              </div>
+              <DatePicker
+                value={start}
+                onChange={setStart}
+                placeholder="Start date"
+                className="flex-1 sm:w-36 w-full rounded-xl px-3 py-3"
+              />
+              <DatePicker
+                value={end}
+                onChange={setEnd}
+                placeholder="End date"
+                className="flex-1 sm:w-36 w-full rounded-xl px-3 py-3"
+              />
             </div>
 
             <button

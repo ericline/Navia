@@ -61,3 +61,19 @@ def create_activity(activity: schemas.ActivityCreate, db: Session = Depends(get_
             )
 
     return crud.create_activity(db=db, activity=activity)
+
+
+@router.patch("/{activity_id}", response_model=schemas.Activity)
+def update_activity(activity_id: int, update: schemas.ActivityUpdate, db: Session = Depends(get_db)):
+    activity = crud.update_activity(db, activity_id=activity_id, update=update)
+    if not activity:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return activity
+
+
+@router.delete("/{activity_id}")
+def delete_activity(activity_id: int, db: Session = Depends(get_db)):
+    success = crud.delete_activity(db, activity_id=activity_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    return {"ok": True}

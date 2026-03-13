@@ -154,3 +154,46 @@ def create_activity(db: Session, activity: schemas.ActivityCreate):
     db.commit()
     db.refresh(db_activity)
     return db_activity
+
+
+def update_activity(db: Session, activity_id: int, update: schemas.ActivityUpdate):
+    db_activity = db.query(models.Activity).filter(models.Activity.id == activity_id).first()
+    if not db_activity:
+        return None
+
+    if update.unschedule:
+        db_activity.day_id = None
+    elif update.day_id is not None:
+        db_activity.day_id = update.day_id
+
+    if update.name is not None:
+        db_activity.name = update.name
+    if update.category is not None:
+        db_activity.category = update.category
+    if update.address is not None:
+        db_activity.address = update.address
+    if update.lat is not None:
+        db_activity.lat = update.lat
+    if update.lng is not None:
+        db_activity.lng = update.lng
+    if update.est_duration_minutes is not None:
+        db_activity.est_duration_minutes = update.est_duration_minutes
+    if update.cost_estimate is not None:
+        db_activity.cost_estimate = update.cost_estimate
+    if update.energy_level is not None:
+        db_activity.energy_level = update.energy_level
+    if update.must_do is not None:
+        db_activity.must_do = update.must_do
+
+    db.commit()
+    db.refresh(db_activity)
+    return db_activity
+
+
+def delete_activity(db: Session, activity_id: int):
+    db_activity = db.query(models.Activity).filter(models.Activity.id == activity_id).first()
+    if not db_activity:
+        return False
+    db.delete(db_activity)
+    db.commit()
+    return True

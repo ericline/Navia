@@ -96,6 +96,21 @@ class ActivityCreate(ActivityBase):
     pass
 
 
+class ActivityUpdate(BaseModel):
+    day_id: Optional[int] = None
+    name: Optional[str] = None
+    category: Optional[str] = None
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    est_duration_minutes: Optional[int] = None
+    cost_estimate: Optional[float] = None
+    energy_level: Optional[str] = None
+    must_do: Optional[bool] = None
+    # sentinel to allow explicitly setting day_id to null (unschedule)
+    unschedule: bool = False
+
+
 class Activity(ActivityBase):
     id: int
 

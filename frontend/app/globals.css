@@ -91,3 +91,76 @@ body {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.20);
 }
+
+/* ---- Constellation theme (trip detail page) ---- */
+
+@keyframes constellationGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgb(var(--blue) / 0.5)); }
+  50%      { filter: drop-shadow(0 0 8px rgb(var(--blue) / 0.8)); }
+}
+
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 0.8; }
+}
+
+@keyframes dockStarfield {
+  0%   { background-position: 0 0; }
+  100% { background-position: 200px 0; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.constellation-star-today {
+  animation: constellationGlow 2s ease-in-out infinite;
+}
+
+.star-twinkle {
+  animation: starTwinkle 2s ease-in-out infinite;
+}
+
+.dock-starfield {
+  background-image: radial-gradient(1px 1px at 10px 10px, rgb(var(--lightBlue) / 0.4), transparent),
+                     radial-gradient(1px 1px at 40px 20px, rgb(var(--lightBlue) / 0.3), transparent),
+                     radial-gradient(1px 1px at 70px 8px, rgb(var(--lightBlue) / 0.5), transparent),
+                     radial-gradient(1px 1px at 100px 25px, rgb(var(--lightBlue) / 0.3), transparent),
+                     radial-gradient(1px 1px at 130px 15px, rgb(var(--lightBlue) / 0.4), transparent),
+                     radial-gradient(1px 1px at 160px 5px, rgb(var(--lightBlue) / 0.3), transparent),
+                     radial-gradient(1px 1px at 190px 22px, rgb(var(--lightBlue) / 0.5), transparent);
+  background-size: 200px 30px;
+  animation: dockStarfield 12s linear infinite;
+}
+
+.slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.slide-in-up {
+  animation: slideInUp 0.3s ease-out;
+}
+
+.panel-backdrop {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Dark-themed activity cards inside the unscheduled dock */
+.dock-card * {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+.dock-card > div {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}

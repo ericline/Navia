@@ -75,6 +75,18 @@ export interface ActivityCreate {
   must_do?: boolean;
 }
 
+export interface ActivityUpdate {
+  day_id?: number | null;
+  name?: string;
+  category?: string;
+  address?: string;
+  est_duration_minutes?: number | null;
+  cost_estimate?: number | null;
+  energy_level?: string | null;
+  must_do?: boolean;
+  unschedule?: boolean;
+}
+
 // ---------- Trip API ----------
 
 export async function fetchTrips(): Promise<Trip[]> {
@@ -198,4 +210,31 @@ export async function createActivity(
     throw new Error("Failed to create activity");
   }
   return res.json();
+}
+
+export async function updateActivity(
+  id: number,
+  data: ActivityUpdate
+): Promise<Activity> {
+  const res = await fetch(`${API_BASE_URL}/activities/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    console.error("updateActivity failed", res.status, await res.text());
+    throw new Error("Failed to update activity");
+  }
+  return res.json();
+}
+
+export async function deleteActivity(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/activities/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    console.error("deleteActivity failed", res.status, await res.text());
+    throw new Error("Failed to delete activity");
+  }
 }
