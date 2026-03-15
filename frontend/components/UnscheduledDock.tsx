@@ -26,9 +26,8 @@ export default function UnscheduledDock({
 
   if (count === 0) return null;
 
-  const sortedDays = days
-    .slice()
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Days are already sorted by the parent component
+  const sortedDays = days;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40">

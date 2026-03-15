@@ -1,28 +1,11 @@
 "use client";
 
 import { Activity } from "@/lib/api";
+import { getCategoryKey, CATEGORY_ACCENT_CLASSES } from "@/lib/utils";
 import { Star, Clock, DollarSign, Zap, Pencil, Trash2 } from "lucide-react";
 
-const CATEGORY_COLORS: Record<string, string> = {
-  food: "bg-orange-400",
-  restaurant: "bg-orange-400",
-  museum: "bg-purple-400",
-  culture: "bg-purple-400",
-  hike: "bg-green-500",
-  outdoor: "bg-green-500",
-  transportation: "bg-slate-400",
-  transit: "bg-slate-400",
-  hotel: "bg-blue-400",
-  accommodation: "bg-blue-400",
-};
-
 function getAccentColor(category?: string | null): string {
-  if (!category) return "bg-lightBlue";
-  const key = category.toLowerCase();
-  for (const [k, v] of Object.entries(CATEGORY_COLORS)) {
-    if (key.includes(k)) return v;
-  }
-  return "bg-lightBlue";
+  return CATEGORY_ACCENT_CLASSES[getCategoryKey(category)];
 }
 
 interface ActivityCardProps {
@@ -126,4 +109,3 @@ export default function ActivityCard({
   );
 }
 
-export { CATEGORY_COLORS, getAccentColor };

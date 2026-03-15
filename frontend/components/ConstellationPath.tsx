@@ -1,164 +1,122 @@
 "use client";
 
 import { Day, Activity } from "@/lib/api";
+import { getTodayStr } from "@/lib/utils";
 
 interface ConstellationPathProps {
   days: Day[];
   activitiesByDay: Record<number, Activity[]>;
   weekOffset: number;
   visibleCount: number;
+  tripName?: string;
 }
 
-function getTodayStr(): string {
-  const d = new Date();
-  return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, "0"),
-    String(d.getDate()).padStart(2, "0"),
-  ].join("-");
-}
+/* ------------------------------------------------------------------ */
+/*  Seeded PRNG — deterministic shapes per seed                        */
+/* ------------------------------------------------------------------ */
 
-// Seeded pseudo-random to get consistent shapes per week offset
 function seededRandom(seed: number): () => number {
-  let s = seed;
+  let s = Math.abs(seed) || 1;
   return () => {
     s = (s * 16807 + 0) % 2147483647;
     return (s - 1) / 2147483646;
   };
 }
 
-// Pre-defined constellation templates for different day counts (2-7 stars)
-// Each is an array of {x, y} positions normalized to [0,1] range
-// These are inspired by real constellation shapes
-const CONSTELLATION_TEMPLATES: Record<number, { x: number; y: number }[]> = {
-  // 2 stars: simple diagonal
-  2: [
-    { x: 0.2, y: 0.65 },
-    { x: 0.8, y: 0.35 },
-  ],
-  // 3 stars: triangle (like Triangulum)
-  3: [
-    { x: 0.15, y: 0.7 },
-    { x: 0.5, y: 0.2 },
-    { x: 0.85, y: 0.6 },
-  ],
-  // 4 stars: kite / diamond (like Southern Cross)
-  4: [
-    { x: 0.1, y: 0.5 },
-    { x: 0.38, y: 0.2 },
-    { x: 0.62, y: 0.7 },
-    { x: 0.9, y: 0.35 },
-  ],
-  // 5 stars: W shape (like Cassiopeia)
-  5: [
-    { x: 0.08, y: 0.35 },
-    { x: 0.27, y: 0.7 },
-    { x: 0.48, y: 0.25 },
-    { x: 0.7, y: 0.65 },
-    { x: 0.92, y: 0.3 },
-  ],
-  // 6 stars: dipper shape (like Big Dipper)
-  6: [
-    { x: 0.06, y: 0.55 },
-    { x: 0.2, y: 0.3 },
-    { x: 0.36, y: 0.45 },
-    { x: 0.52, y: 0.25 },
-    { x: 0.72, y: 0.6 },
-    { x: 0.94, y: 0.4 },
-  ],
-  // 7 stars: arc + fork (like Big Dipper full)
-  7: [
-    { x: 0.04, y: 0.45 },
-    { x: 0.17, y: 0.7 },
-    { x: 0.31, y: 0.3 },
-    { x: 0.46, y: 0.55 },
-    { x: 0.6, y: 0.2 },
-    { x: 0.76, y: 0.6 },
-    { x: 0.94, y: 0.35 },
-  ],
-};
+/* ------------------------------------------------------------------ */
+/*  Procedural constellation generator                                 */
+/*  Creates a unique shape for any star count, seeded by an ID so      */
+/*  every trip/week gets its own recognizable pattern.                  */
+/* ------------------------------------------------------------------ */
 
-// Get a varied constellation shape for a given week, with slight random perturbation
-function getNodePositions(
+function generateConstellationPoints(
   count: number,
-  weekIndex: number,
+  seed: number,
   svgWidth: number,
   svgHeight: number
-) {
-  const template = CONSTELLATION_TEMPLATES[count] ?? CONSTELLATION_TEMPLATES[7]!.slice(0, count);
-  const rand = seededRandom(weekIndex * 7919 + count * 131);
-
-  // Apply small random offsets to make each week feel unique,
-  // but keep the overall shape recognizable
-  const padding = 30;
+): { x: number; y: number }[] {
+  const rand = seededRandom(seed * 7919 + count * 131);
+  const padding = 28;
   const usableW = svgWidth - padding * 2;
   const usableH = svgHeight - padding * 2;
 
-  return template.map((pt) => {
-    const jitterX = (rand() - 0.5) * 0.08;
-    const jitterY = (rand() - 0.5) * 0.1;
-    return {
-      x: padding + (pt.x + jitterX) * usableW,
-      y: padding + (pt.y + jitterY) * usableH,
-    };
-  });
+  const points: { x: number; y: number }[] = [];
+
+  for (let i = 0; i < count; i++) {
+    // Spread stars horizontally with some randomness
+    const baseX = count === 1 ? 0.5 : i / (count - 1);
+    // Create sharp vertical variation — alternate high/low with randomness
+    const zigzag = i % 2 === 0 ? 0.2 + rand() * 0.25 : 0.55 + rand() * 0.3;
+    // Add horizontal jitter so it doesn't look like a perfect grid
+    const jitterX = (rand() - 0.5) * (0.6 / Math.max(count - 1, 1));
+
+    points.push({
+      x: padding + Math.max(0, Math.min(1, baseX + jitterX)) * usableW,
+      y: padding + zigzag * usableH,
+    });
+  }
+
+  return points;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                           */
+/* ------------------------------------------------------------------ */
 
 export default function ConstellationPath({
   days,
   activitiesByDay,
   weekOffset,
   visibleCount,
+  tripName,
 }: ConstellationPathProps) {
   const visibleDays = days.slice(weekOffset, weekOffset + visibleCount);
   if (visibleDays.length === 0) return null;
 
   const todayStr = getTodayStr();
   const svgWidth = Math.max(visibleDays.length * 120, 400);
-  const svgHeight = 80;
+  const svgHeight = 90;
   const weekIndex = Math.floor(weekOffset / 7);
 
-  const positions = getNodePositions(
+  const positions = generateConstellationPoints(
     visibleDays.length,
-    weekIndex,
+    weekIndex + (days[0]?.trip_id ?? 0) * 37,
     svgWidth,
     svgHeight
   );
 
   const nodes = visibleDays.map((day, i) => {
-    const actCount = activitiesByDay[day.id]?.length ?? 0;
-    const radius = Math.min(4 + actCount * 1.2, 10);
+    const acts = activitiesByDay[day.id] ?? [];
+    const actCount = acts.length;
+    // Star brightness scales with activity density
+    const baseRadius = 3.5;
+    const radius = Math.min(baseRadius + actCount * 1.5, 12);
+    const glowRadius = Math.min(radius + 6 + actCount * 2, 24);
+    const glowOpacity = Math.min(0.08 + actCount * 0.04, 0.3);
     const isToday = day.date === todayStr;
     const isPast = day.date < todayStr;
     return {
       cx: positions[i].x,
       cy: positions[i].y,
       radius,
+      glowRadius,
+      glowOpacity,
       isToday,
       isPast,
       day,
+      actCount,
     };
   });
 
-  // Build bezier path segments between consecutive nodes
-  const pathSegments: string[] = [];
+  // Build straight line path segments
+  const segments: { from: typeof nodes[0]; to: typeof nodes[0]; index: number }[] = [];
   for (let i = 0; i < nodes.length - 1; i++) {
-    const a = nodes[i];
-    const b = nodes[i + 1];
-    const midX = (a.cx + b.cx) / 2;
-    // Control point offset perpendicular to the line
-    const dx = b.cx - a.cx;
-    const dy = b.cy - a.cy;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    // Alternate curve direction for organic feel
-    const sign = i % 2 === 0 ? -1 : 1;
-    const perpScale = len * 0.15 * sign;
-    const ctrlX = midX + (-dy / len) * perpScale;
-    const ctrlY = (a.cy + b.cy) / 2 + (dx / len) * perpScale;
-    pathSegments.push(
-      `M ${a.cx} ${a.cy} Q ${ctrlX} ${ctrlY} ${b.cx} ${b.cy}`
-    );
+    segments.push({ from: nodes[i], to: nodes[i + 1], index: i });
   }
+
+  // Constellation label position — center of bounding box, offset above
+  const labelX = nodes.reduce((s, n) => s + n.cx, 0) / nodes.length;
+  const minY = Math.min(...nodes.map((n) => n.cy));
 
   return (
     <div className="w-full overflow-hidden px-2">
@@ -170,41 +128,77 @@ export default function ConstellationPath({
         preserveAspectRatio="xMidYMid meet"
       >
         {/* Faint background stars */}
-        {Array.from({ length: 8 }).map((_, i) => {
-          const rand = seededRandom(weekIndex * 1000 + i);
+        {Array.from({ length: 10 }).map((_, i) => {
+          const rand = seededRandom(weekIndex * 1000 + i + 7);
           return (
             <circle
               key={`bg-${i}`}
               cx={rand() * svgWidth}
               cy={rand() * svgHeight}
-              r={0.8}
+              r={0.6 + rand() * 0.5}
               fill="rgb(var(--lightBlue))"
-              fillOpacity={0.15 + rand() * 0.15}
+              fillOpacity={0.1 + rand() * 0.12}
             />
           );
         })}
 
-        {/* Connection lines */}
-        {pathSegments.map((d, i) => {
-          const fromNode = nodes[i];
-          const toNode = nodes[i + 1];
+        {/* Constellation label */}
+        {tripName && (
+          <text
+            x={labelX}
+            y={Math.max(minY - 10, 8)}
+            textAnchor="middle"
+            fontSize="8"
+            fill="rgb(var(--lightBlue))"
+            fillOpacity="0.35"
+            letterSpacing="1.5"
+            fontFamily="system-ui, sans-serif"
+            style={{ textTransform: "uppercase" } as React.CSSProperties}
+          >
+            {tripName}
+          </text>
+        )}
+
+        {/* Connection lines — straight with style progression */}
+        {segments.map(({ from, to, index }) => {
           const bothPastOrToday =
-            (fromNode.isPast || fromNode.isToday) &&
-            (toNode.isPast || toNode.isToday);
+            (from.isPast || from.isToday) && (to.isPast || to.isToday);
+          const isCurrentEdge =
+            (from.isToday && !to.isPast && !to.isToday) ||
+            (to.isToday && !from.isPast && !from.isToday);
+          // Style progression: past=solid bright, current=animated, future=dashed dim
+          let stroke = "rgb(var(--lightBlue))";
+          let strokeWidth = 1.2;
+          let strokeOpacity = 0.18;
+          let dashArray = "5 5";
+          let className = "";
+
+          if (bothPastOrToday) {
+            stroke = "rgb(var(--blue))";
+            strokeWidth = 2;
+            strokeOpacity = 0.6;
+            dashArray = "none";
+          } else if (isCurrentEdge) {
+            stroke = "rgb(var(--blue))";
+            strokeWidth = 1.8;
+            strokeOpacity = 0.45;
+            dashArray = "none";
+            className = "constellation-current-edge";
+          }
 
           return (
-            <path
-              key={i}
-              d={d}
-              stroke={
-                bothPastOrToday
-                  ? "rgb(var(--blue))"
-                  : "rgb(var(--lightBlue))"
-              }
-              strokeWidth={bothPastOrToday ? 2 : 1.5}
-              strokeOpacity={bothPastOrToday ? 0.55 : 0.2}
-              strokeDasharray={bothPastOrToday ? "none" : "4 4"}
+            <line
+              key={`line-${index}`}
+              x1={from.cx}
+              y1={from.cy}
+              x2={to.cx}
+              y2={to.cy}
+              stroke={stroke}
+              strokeWidth={strokeWidth}
+              strokeOpacity={strokeOpacity}
+              strokeDasharray={dashArray}
               strokeLinecap="round"
+              className={className}
             />
           );
         })}
@@ -212,28 +206,43 @@ export default function ConstellationPath({
         {/* Star nodes */}
         {nodes.map((node) => (
           <g key={node.day.id}>
+            {/* Activity density glow */}
+            {node.actCount > 0 && (
+              <circle
+                cx={node.cx}
+                cy={node.cy}
+                r={node.glowRadius}
+                fill={
+                  node.isToday || node.isPast
+                    ? "rgb(var(--blue))"
+                    : "rgb(var(--lightBlue))"
+                }
+                fillOpacity={node.glowOpacity}
+              />
+            )}
+
+            {/* Today pulse ring */}
             {node.isToday && (
               <>
                 <circle
                   cx={node.cx}
                   cy={node.cy}
-                  r={node.radius + 4}
+                  r={node.radius + 5}
                   fill="rgb(var(--blue))"
                   fillOpacity="0.12"
                 />
-                {/* Pulse ring — use SVG animate for correct centering */}
                 <circle
                   cx={node.cx}
                   cy={node.cy}
-                  r={node.radius + 4}
+                  r={node.radius + 5}
                   fill="none"
                   stroke="rgb(var(--blue))"
                   strokeWidth="1"
                 >
                   <animate
                     attributeName="r"
-                    from={node.radius + 4}
-                    to={node.radius + 20}
+                    from={node.radius + 5}
+                    to={node.radius + 22}
                     dur="2s"
                     repeatCount="indefinite"
                   />
@@ -247,6 +256,8 @@ export default function ConstellationPath({
                 </circle>
               </>
             )}
+
+            {/* Star body */}
             <circle
               cx={node.cx}
               cy={node.cy}
@@ -256,16 +267,17 @@ export default function ConstellationPath({
                   ? "rgb(var(--blue))"
                   : "rgb(var(--lightBlue))"
               }
-              fillOpacity={node.isToday ? 1 : node.isPast ? 0.8 : 0.4}
+              fillOpacity={node.isToday ? 1 : node.isPast ? 0.8 : 0.35}
               className={node.isToday ? "constellation-star-today" : ""}
             />
+
             {/* Inner highlight */}
             <circle
-              cx={node.cx - node.radius * 0.25}
-              cy={node.cy - node.radius * 0.25}
+              cx={node.cx - node.radius * 0.2}
+              cy={node.cy - node.radius * 0.2}
               r={node.radius * 0.3}
               fill="white"
-              fillOpacity={node.isToday ? 0.5 : node.isPast ? 0.3 : 0.15}
+              fillOpacity={node.isToday ? 0.55 : node.isPast ? 0.3 : 0.12}
             />
           </g>
         ))}

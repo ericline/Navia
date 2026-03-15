@@ -10,7 +10,7 @@
   /* Surface palette (warm light theme) */
   --warmBg: 250 248 246;
   --warmSurface: 241 235 230;
-  --warmCard: 240 229 196;
+  --warmCard: 255, 239, 191;
   --coolCard: 224 235 244;
 }
 
@@ -126,6 +126,57 @@ body {
 
 .constellation-star-today {
   animation: constellationGlow 2s ease-in-out infinite;
+}
+
+/* Animated flowing dash on the "current" edge (today → future) */
+@keyframes constellationFlowDash {
+  from { stroke-dashoffset: 16; }
+  to   { stroke-dashoffset: 0; }
+}
+
+.constellation-current-edge {
+  stroke-dasharray: 8 8;
+  animation: constellationFlowDash 1s linear infinite;
+}
+
+/* Reveal animation — stars pop in */
+@keyframes constellationStarReveal {
+  0%   { opacity: 0; transform: scale(0.3); }
+  60%  { opacity: 1; transform: scale(1.3); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Reveal animation — lines draw in */
+@keyframes constellationLineReveal {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.constellation-reveal-star {
+  animation: constellationStarReveal 0.35s ease-out both;
+}
+
+.constellation-reveal-line {
+  animation: constellationLineReveal 0.25s ease-out both;
+}
+
+/* Full-screen reveal overlay */
+@keyframes constellationOverlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes constellationTitleIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.constellation-reveal-overlay {
+  animation: constellationOverlayIn 0.5s ease-out both;
+}
+
+.constellation-reveal-title {
+  animation: constellationTitleIn 0.6s ease-out 0.2s both;
 }
 
 .star-twinkle {

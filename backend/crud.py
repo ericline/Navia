@@ -135,8 +135,6 @@ def get_activity(db: Session, activity_id: int):
 
 
 def create_activity(db: Session, activity: schemas.ActivityCreate):
-    cost = activity.cost_estimate if activity.cost_estimate is not None else 0.0
-
     db_activity = models.Activity(
         trip_id=activity.trip_id,
         day_id=activity.day_id,
@@ -146,7 +144,7 @@ def create_activity(db: Session, activity: schemas.ActivityCreate):
         lat=activity.lat,
         lng=activity.lng,
         est_duration_minutes=activity.est_duration_minutes,
-        cost_estimate=cost,
+        cost_estimate=activity.cost_estimate,
         energy_level=activity.energy_level,
         must_do=activity.must_do,
     )
@@ -161,29 +159,21 @@ def update_activity(db: Session, activity_id: int, update: schemas.ActivityUpdat
     if not db_activity:
         return None
 
+    # Use model_fields_set to distinguish "not sent" from "explicitly set to null/zero"
+    provided = update.model_fields_set
+
     if update.unschedule:
         db_activity.day_id = None
-    elif update.day_id is not None:
+    elif "day_id" in provided:
         db_activity.day_id = update.day_id
 
-    if update.name is not None:
-        db_activity.name = update.name
-    if update.category is not None:
-        db_activity.category = update.category
-    if update.address is not None:
-        db_activity.address = update.address
-    if update.lat is not None:
-        db_activity.lat = update.lat
-    if update.lng is not None:
-        db_activity.lng = update.lng
-    if update.est_duration_minutes is not None:
-        db_activity.est_duration_minutes = update.est_duration_minutes
-    if update.cost_estimate is not None:
-        db_activity.cost_estimate = update.cost_estimate
-    if update.energy_level is not None:
-        db_activity.energy_level = update.energy_level
-    if update.must_do is not None:
-        db_activity.must_do = update.must_do
+    updatable_fields = [
+        "name", "category", "address", "lat", "lng",
+        "est_duration_minutes", "cost_estimate", "energy_level", "must_do",
+    ]
+    for field in updatable_fields:
+        if field in provided:
+            setattr(db_activity, field, getattr(update, field))
 
     db.commit()
     db.refresh(db_activity)

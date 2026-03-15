@@ -1,6 +1,7 @@
 "use client";
 
 import { Day, Activity } from "@/lib/api";
+import { getCategoryKey, CATEGORY_NEBULA_COLORS, type CategoryKey } from "@/lib/utils";
 import { Plus, Clock, DollarSign, Hash } from "lucide-react";
 import ActivityCard from "./ActivityCard";
 
@@ -14,31 +15,16 @@ interface DayColumnProps {
 }
 
 function getNebulaColor(activities: Activity[]): string {
-  if (activities.length === 0) return "rgb(var(--lightBlue) / 0.05)";
+  if (activities.length === 0) return CATEGORY_NEBULA_COLORS.other;
 
-  const counts: Record<string, number> = {};
+  const counts: Record<CategoryKey, number> = { food: 0, museum: 0, hike: 0, transport: 0, hotel: 0, other: 0 };
   for (const a of activities) {
-    const cat = (a.category || "other").toLowerCase();
-    if (cat.includes("food") || cat.includes("restaurant"))
-      counts["food"] = (counts["food"] || 0) + 1;
-    else if (cat.includes("museum") || cat.includes("culture"))
-      counts["museum"] = (counts["museum"] || 0) + 1;
-    else if (cat.includes("hike") || cat.includes("outdoor"))
-      counts["hike"] = (counts["hike"] || 0) + 1;
-    else counts["other"] = (counts["other"] || 0) + 1;
+    counts[getCategoryKey(a.category)]++;
   }
 
-  const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
-  switch (dominant) {
-    case "food":
-      return "rgba(251, 146, 60, 0.07)";
-    case "museum":
-      return "rgba(168, 85, 247, 0.06)";
-    case "hike":
-      return "rgba(34, 197, 94, 0.06)";
-    default:
-      return "rgb(var(--lightBlue) / 0.05)";
-  }
+  const dominant = (Object.entries(counts) as [CategoryKey, number][])
+    .sort((a, b) => b[1] - a[1])[0][0];
+  return CATEGORY_NEBULA_COLORS[dominant];
 }
 
 function getDayLabel(date: string): string {

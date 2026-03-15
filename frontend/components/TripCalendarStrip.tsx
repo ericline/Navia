@@ -1,6 +1,7 @@
 "use client";
 
 import { Day, Activity } from "@/lib/api";
+import { getTodayStr } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ConstellationPath from "./ConstellationPath";
 import DayColumn from "./DayColumn";
@@ -13,6 +14,7 @@ interface TripCalendarStripProps {
   onAddActivity: (dayId: number) => void;
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (activityId: number) => void;
+  tripName?: string;
 }
 
 const MAX_VISIBLE = 7;
@@ -25,20 +27,14 @@ export default function TripCalendarStrip({
   onAddActivity,
   onEditActivity,
   onDeleteActivity,
+  tripName,
 }: TripCalendarStripProps) {
   const totalDays = days.length;
   const visibleCount = Math.min(MAX_VISIBLE, totalDays - weekOffset);
   const canGoBack = weekOffset > 0;
   const canGoForward = weekOffset + MAX_VISIBLE < totalDays;
 
-  const todayStr = (() => {
-    const d = new Date();
-    return [
-      d.getFullYear(),
-      String(d.getMonth() + 1).padStart(2, "0"),
-      String(d.getDate()).padStart(2, "0"),
-    ].join("-");
-  })();
+  const todayStr = getTodayStr();
 
   const visibleDays = days.slice(weekOffset, weekOffset + visibleCount);
 
@@ -83,6 +79,7 @@ export default function TripCalendarStrip({
         activitiesByDay={activitiesByDay}
         weekOffset={weekOffset}
         visibleCount={visibleCount}
+        tripName={tripName}
       />
 
       {/* Day columns grid */}

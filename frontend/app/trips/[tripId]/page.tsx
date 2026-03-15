@@ -22,6 +22,7 @@ import TripHeader from "@/components/TripHeader";
 import TripCalendarStrip from "@/components/TripCalendarStrip";
 import UnscheduledDock from "@/components/UnscheduledDock";
 import AddActivityPanel from "@/components/AddActivityPanel";
+import TripConstellation from "@/components/TripConstellation";
 
 export default function TripDetailPage() {
   const params = useParams();
@@ -45,6 +46,9 @@ export default function TripDetailPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelDayId, setPanelDayId] = useState<number | null>(null);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+
+  // Constellation reveal overlay (shown on Finish)
+  const [showReveal, setShowReveal] = useState(false);
 
   // Guard against React Strict Mode double-firing the generate call
   const generatingRef = useRef(false);
@@ -127,7 +131,13 @@ export default function TripDetailPage() {
   }
 
   function handleFinish() {
-    router.push("/current-trips");
+    setShowReveal(true);
+    // Let the constellation reveal animation play, then navigate
+    const totalStars = sortedDays.length;
+    const revealDuration = totalStars * 2 * 150 + 1200; // stars + lines + pause
+    setTimeout(() => {
+      router.push("/");
+    }, revealDuration);
   }
 
   function handleOpenPanel(dayId?: number) {
@@ -154,18 +164,33 @@ export default function TripDetailPage() {
   }
 
   async function handleCreateActivity(data: ActivityCreate) {
-    await createActivity(data);
-    await refreshActivities();
+    try {
+      await createActivity(data);
+      await refreshActivities();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create activity.");
+    }
   }
 
   async function handleUpdateActivity(id: number, data: ActivityUpdate) {
-    await updateActivity(id, data);
-    await refreshActivities();
+    try {
+      await updateActivity(id, data);
+      await refreshActivities();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update activity.");
+    }
   }
 
   async function handleScheduleActivity(activityId: number, dayId: number) {
-    await updateActivity(activityId, { day_id: dayId });
-    await refreshActivities();
+    try {
+      await updateActivity(activityId, { day_id: dayId });
+      await refreshActivities();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to schedule activity.");
+    }
   }
 
   // Loading / error states
@@ -202,6 +227,7 @@ export default function TripDetailPage() {
           onAddActivity={handleOpenPanel}
           onEditActivity={handleEditActivity}
           onDeleteActivity={handleDeleteActivity}
+          tripName={trip.name}
         />
       ) : (
         <section className="glass bg-warmSurface rounded-2xl p-8 text-center">
@@ -242,6 +268,30 @@ export default function TripDetailPage() {
         preselectedDayId={panelDayId}
         editingActivity={editingActivity}
       />
+
+      {/* Constellation reveal overlay */}
+      {showReveal && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-warmBg constellation-reveal-overlay">
+          <p className="text-sm text-black/40 mb-2 tracking-wide uppercase constellation-reveal-title">
+            Your constellation
+          </p>
+          <h2 className="text-2xl font-bold text-black/80 mb-6 constellation-reveal-title">
+            {trip.name}
+          </h2>
+          <div className="w-full max-w-2xl px-8">
+            <TripConstellation
+              tripId={tripId}
+              tripName={trip.name}
+              days={sortedDays}
+              activitiesByDay={activitiesByDay}
+              revealAnimation
+            />
+          </div>
+          <p className="mt-8 text-xs text-black/30 constellation-reveal-title">
+            Trip saved
+          </p>
+        </div>
+      )}
     </main>
   );
 }

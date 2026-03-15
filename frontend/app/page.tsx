@@ -29,6 +29,7 @@ import {
 } from "@/lib/utils";
 import LocationAutocomplete from "@/components/LocationAutocomplete";
 import DatePicker from "@/components/DatePicker";
+import TripConstellation from "@/components/TripConstellation";
 import { useAuth } from "@/contexts/AuthContext";
 
 /* ------------------------------------------------------------------ */
@@ -130,6 +131,19 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
               </div>
             ) : (
               <div className="space-y-1.5">
+                {/* Mini constellation preview */}
+                <TripConstellation
+                  tripId={trip.id}
+                  tripName={trip.name}
+                  days={days
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        new Date(a.date).getTime() - new Date(b.date).getTime()
+                    )}
+                  activitiesByDay={actsByDay}
+                  compact
+                />
                 {days
                   .slice()
                   .sort(
@@ -170,6 +184,80 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Past trip card with lazy-loaded constellation                      */
+/* ------------------------------------------------------------------ */
+
+function PastTripCard({ trip }: { trip: Trip }) {
+  const router = useRouter();
+  const [days, setDays] = useState<Day[]>([]);
+  const [acts, setActs] = useState<Activity[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [d, a] = await Promise.all([
+          fetchDaysForTrip(trip.id),
+          fetchActivitiesForTrip(trip.id),
+        ]);
+        if (!cancelled) {
+          setDays(d);
+          setActs(a);
+          setLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [trip.id]);
+
+  const actsByDay = useMemo(() => {
+    const map: Record<number, Activity[]> = {};
+    for (const a of acts) {
+      if (a.day_id == null) continue;
+      (map[a.day_id] ??= []).push(a);
+    }
+    return map;
+  }, [acts]);
+
+  const sortedDays = useMemo(
+    () => days.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [days]
+  );
+
+  return (
+    <button
+      onClick={() => router.push(`/trips/${trip.id}`)}
+      className="w-full text-left rounded-xl bg-black/[0.03] hover:bg-black/[0.06] transition p-3"
+    >
+      <div className="flex items-center gap-3">
+        <div className="h-2 w-2 rounded-full bg-pink/30 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm text-black/65 truncate">{trip.name}</div>
+          <div className="text-[11px] text-black/35">
+            {trip.destination} · {formatDate(trip.start_date)} —{" "}
+            {formatDate(trip.end_date)}
+          </div>
+        </div>
+      </div>
+      {loaded && sortedDays.length > 0 && (
+        <div className="mt-1.5">
+          <TripConstellation
+            tripId={trip.id}
+            tripName={trip.name}
+            days={sortedDays}
+            activitiesByDay={actsByDay}
+            compact
+          />
+        </div>
+      )}
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Hero widget (shown to everyone)                                    */
 /* ------------------------------------------------------------------ */
 
@@ -203,7 +291,7 @@ function HeroWidget() {
         destination: dest.trim(),
         start_date: start,
         end_date: end,
-        timezone: "America/New_York",
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
       router.push(`/trips/${trip.id}`);
     } catch (err) {
@@ -635,20 +723,7 @@ export default function HomePage() {
                   </p>
                 ) : (
                   pastTrips.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => router.push(`/trips/${t.id}`)}
-                      className="w-full text-left rounded-xl bg-black/[0.03] hover:bg-black/[0.06] transition p-3 flex items-center gap-3"
-                    >
-                      <div className="h-2 w-2 rounded-full bg-pink/30 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm text-black/65 truncate">{t.name}</div>
-                        <div className="text-[11px] text-black/35">
-                          {t.destination} · {formatDate(t.start_date)} —{" "}
-                          {formatDate(t.end_date)}
-                        </div>
-                      </div>
-                    </button>
+                    <PastTripCard key={t.id} trip={t} />
                   ))
                 )}
               </div>

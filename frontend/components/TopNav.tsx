@@ -21,8 +21,7 @@ export default function TopNav() {
 
   return (
     <div
-      className="sticky top-0 z-50 border-b border-black/10 backdrop-blur"
-      style={{ backgroundColor: "#f1ebe6" }}
+      className="sticky top-0 z-50 border-b border-black/10 backdrop-blur bg-warmSurface"
     >
       <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center">

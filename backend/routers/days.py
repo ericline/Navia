@@ -4,9 +4,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from database import SessionLocal
 import crud
+import models
 import schemas
+from auth import get_db, get_current_user, verify_trip_access
 
 router = APIRouter(
     prefix="/days",
@@ -14,32 +15,34 @@ router = APIRouter(
 )
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.get("/trip/{trip_id}", response_model=List[schemas.Day])
-def read_days_for_trip(trip_id: int, db: Session = Depends(get_db)):
-    days = crud.get_days_for_trip(db, trip_id=trip_id)
-    return days
+def read_days_for_trip(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    verify_trip_access(db, trip_id, current_user)
+    return crud.get_days_for_trip(db, trip_id=trip_id)
 
 
 @router.get("/{day_id}", response_model=schemas.Day)
-def read_day(day_id: int, db: Session = Depends(get_db)):
+def read_day(
+    day_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     day = crud.get_day(db, day_id=day_id)
     if not day:
         raise HTTPException(status_code=404, detail="Day not found")
+    verify_trip_access(db, day.trip_id, current_user)
     return day
 
 
 @router.post("/", response_model=schemas.Day)
-def create_day(day: schemas.DayCreate, db: Session = Depends(get_db)):
-    # Optional: check that trip exists first
-    trip = crud.get_trip(db, trip_id=day.trip_id)
-    if not trip:
-        raise HTTPException(status_code=404, detail="Trip not found")
+def create_day(
+    day: schemas.DayCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    verify_trip_access(db, day.trip_id, current_user)
     return crud.create_day(db=db, day=day)

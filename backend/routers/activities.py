@@ -4,9 +4,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from database import SessionLocal
 import crud
+import models
 import schemas
+from auth import get_db, get_current_user, verify_trip_access
 
 router = APIRouter(
     prefix="/activities",
@@ -14,42 +15,50 @@ router = APIRouter(
 )
 
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 @router.get("/trip/{trip_id}", response_model=List[schemas.Activity])
-def read_activities_for_trip(trip_id: int, db: Session = Depends(get_db)):
-    activities = crud.get_activities_for_trip(db, trip_id=trip_id)
-    return activities
+def read_activities_for_trip(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    verify_trip_access(db, trip_id, current_user)
+    return crud.get_activities_for_trip(db, trip_id=trip_id)
 
 
 @router.get("/day/{day_id}", response_model=List[schemas.Activity])
-def read_activities_for_day(day_id: int, db: Session = Depends(get_db)):
-    activities = crud.get_activities_for_day(db, day_id=day_id)
-    return activities
+def read_activities_for_day(
+    day_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    day = crud.get_day(db, day_id=day_id)
+    if not day:
+        raise HTTPException(status_code=404, detail="Day not found")
+    verify_trip_access(db, day.trip_id, current_user)
+    return crud.get_activities_for_day(db, day_id=day_id)
 
 
 @router.get("/{activity_id}", response_model=schemas.Activity)
-def read_activity(activity_id: int, db: Session = Depends(get_db)):
+def read_activity(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     activity = crud.get_activity(db, activity_id=activity_id)
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
+    verify_trip_access(db, activity.trip_id, current_user)
     return activity
 
 
 @router.post("/", response_model=schemas.Activity)
-def create_activity(activity: schemas.ActivityCreate, db: Session = Depends(get_db)):
-    # Optional: verify trip exists
-    trip = crud.get_trip(db, trip_id=activity.trip_id)
-    if not trip:
-        raise HTTPException(status_code=404, detail="Trip not found")
+def create_activity(
+    activity: schemas.ActivityCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    verify_trip_access(db, activity.trip_id, current_user)
 
-    # If a day_id is provided, you could also verify that the day belongs to the same trip
     if activity.day_id is not None:
         day = crud.get_day(db, day_id=activity.day_id)
         if not day:
@@ -64,16 +73,29 @@ def create_activity(activity: schemas.ActivityCreate, db: Session = Depends(get_
 
 
 @router.patch("/{activity_id}", response_model=schemas.Activity)
-def update_activity(activity_id: int, update: schemas.ActivityUpdate, db: Session = Depends(get_db)):
-    activity = crud.update_activity(db, activity_id=activity_id, update=update)
-    if not activity:
+def update_activity(
+    activity_id: int,
+    update: schemas.ActivityUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    existing = crud.get_activity(db, activity_id=activity_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Activity not found")
+    verify_trip_access(db, existing.trip_id, current_user)
+    activity = crud.update_activity(db, activity_id=activity_id, update=update)
     return activity
 
 
 @router.delete("/{activity_id}")
-def delete_activity(activity_id: int, db: Session = Depends(get_db)):
-    success = crud.delete_activity(db, activity_id=activity_id)
-    if not success:
+def delete_activity(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    existing = crud.get_activity(db, activity_id=activity_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="Activity not found")
+    verify_trip_access(db, existing.trip_id, current_user)
+    crud.delete_activity(db, activity_id=activity_id)
     return {"ok": True}

@@ -94,7 +94,7 @@ class Day(Base):
     activities = relationship(
         "Activity",
         back_populates="day",
-        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 

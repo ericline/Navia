@@ -2,20 +2,20 @@
 from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 # ---------- User / Auth Schemas ----------
 
 class UserCreate(BaseModel):
-    name: str
-    email: str
-    password: str
+    name: str = Field(..., min_length=1, max_length=200)
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=200)
     birthday: Optional[date] = None
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -37,11 +37,17 @@ class Token(BaseModel):
 # ---------- Trip Schemas ----------
 
 class TripBase(BaseModel):
-    name: str
-    destination: str
+    name: str = Field(..., min_length=1, max_length=300)
+    destination: str = Field(..., min_length=1, max_length=500)
     start_date: date
     end_date: date
     timezone: str = "America/New_York"
+
+    @model_validator(mode="after")
+    def end_not_before_start(self):
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must not be before start_date")
+        return self
 
 
 class TripCreate(TripBase):
@@ -59,8 +65,8 @@ class Trip(TripBase):
 class DayBase(BaseModel):
     trip_id: int
     date: date
-    name: Optional[str] = None
-    notes: Optional[str] = None
+    name: Optional[str] = Field(None, max_length=300)
+    notes: Optional[str] = Field(None, max_length=2000)
 
 
 class DayCreate(DayBase):
@@ -79,16 +85,16 @@ class ActivityBase(BaseModel):
     trip_id: int
     day_id: Optional[int] = None
 
-    name: str
-    category: Optional[str] = None
-    address: Optional[str] = None
+    name: str = Field(..., min_length=1, max_length=500)
+    category: Optional[str] = Field(None, max_length=100)
+    address: Optional[str] = Field(None, max_length=500)
 
-    lat: Optional[float] = None
-    lng: Optional[float] = None
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lng: Optional[float] = Field(None, ge=-180, le=180)
 
-    est_duration_minutes: Optional[int] = None
-    cost_estimate: Optional[float] = None
-    energy_level: Optional[str] = None
+    est_duration_minutes: Optional[int] = Field(None, ge=0, le=1440)
+    cost_estimate: Optional[float] = Field(None, ge=0)
+    energy_level: Optional[str] = Field(None, max_length=50)
     must_do: bool = False
 
 
@@ -98,14 +104,14 @@ class ActivityCreate(ActivityBase):
 
 class ActivityUpdate(BaseModel):
     day_id: Optional[int] = None
-    name: Optional[str] = None
-    category: Optional[str] = None
-    address: Optional[str] = None
-    lat: Optional[float] = None
-    lng: Optional[float] = None
-    est_duration_minutes: Optional[int] = None
-    cost_estimate: Optional[float] = None
-    energy_level: Optional[str] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=500)
+    category: Optional[str] = Field(None, max_length=100)
+    address: Optional[str] = Field(None, max_length=500)
+    lat: Optional[float] = Field(None, ge=-90, le=90)
+    lng: Optional[float] = Field(None, ge=-180, le=180)
+    est_duration_minutes: Optional[int] = Field(None, ge=0, le=1440)
+    cost_estimate: Optional[float] = Field(None, ge=0)
+    energy_level: Optional[str] = Field(None, max_length=50)
     must_do: Optional[bool] = None
     # sentinel to allow explicitly setting day_id to null (unschedule)
     unschedule: bool = False

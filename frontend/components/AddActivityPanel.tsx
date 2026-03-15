@@ -12,6 +12,28 @@ const labelClass = "block text-xs mb-1 text-black/50";
 const selectClass =
   "glass-input block w-full rounded-xl px-3 py-2 text-sm text-black/85";
 
+interface FormState {
+  name: string;
+  category: string;
+  address: string;
+  dayId: string;
+  duration: string;
+  cost: string;
+  energy: string;
+  mustDo: boolean;
+}
+
+const EMPTY_FORM: FormState = {
+  name: "",
+  category: "",
+  address: "",
+  dayId: "",
+  duration: "",
+  cost: "",
+  energy: "",
+  mustDo: false,
+};
+
 interface AddActivityPanelProps {
   open: boolean;
   onClose: () => void;
@@ -35,15 +57,10 @@ export default function AddActivityPanel({
 }: AddActivityPanelProps) {
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
-  const [address, setAddress] = useState("");
-  const [dayId, setDayId] = useState<string>("");
-  const [duration, setDuration] = useState("");
-  const [cost, setCost] = useState("");
-  const [energy, setEnergy] = useState("");
-  const [mustDo, setMustDo] = useState(false);
+  const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   useEffect(() => {
     setMounted(true);
@@ -53,96 +70,81 @@ export default function AddActivityPanel({
   useEffect(() => {
     if (!open) return;
     if (editingActivity) {
-      setName(editingActivity.name);
-      setCategory(editingActivity.category || "");
-      setAddress(editingActivity.address || "");
-      setDayId(editingActivity.day_id != null ? String(editingActivity.day_id) : "");
-      setDuration(
-        editingActivity.est_duration_minutes != null
-          ? String(editingActivity.est_duration_minutes)
-          : ""
-      );
-      setCost(
-        editingActivity.cost_estimate != null
-          ? String(editingActivity.cost_estimate)
-          : ""
-      );
-      setEnergy(editingActivity.energy_level || "");
-      setMustDo(editingActivity.must_do);
+      setForm({
+        name: editingActivity.name,
+        category: editingActivity.category || "",
+        address: editingActivity.address || "",
+        dayId: editingActivity.day_id != null ? String(editingActivity.day_id) : "",
+        duration:
+          editingActivity.est_duration_minutes != null
+            ? String(editingActivity.est_duration_minutes)
+            : "",
+        cost:
+          editingActivity.cost_estimate != null
+            ? String(editingActivity.cost_estimate)
+            : "",
+        energy: editingActivity.energy_level || "",
+        mustDo: editingActivity.must_do,
+      });
     } else {
-      resetForm();
-      if (preselectedDayId != null) {
-        setDayId(String(preselectedDayId));
-      }
+      setForm({
+        ...EMPTY_FORM,
+        dayId: preselectedDayId != null ? String(preselectedDayId) : "",
+      });
     }
   }, [open, editingActivity, preselectedDayId]);
 
-  function resetForm() {
-    setName("");
-    setCategory("");
-    setAddress("");
-    setDayId("");
-    setDuration("");
-    setCost("");
-    setEnergy("");
-    setMustDo(false);
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!form.name.trim()) return;
 
     const parsedDuration =
-      duration.trim() === ""
+      form.duration.trim() === ""
         ? null
-        : Number.isNaN(Number(duration))
+        : Number.isNaN(Number(form.duration))
         ? null
-        : Number(duration);
+        : Number(form.duration);
     const parsedCost =
-      cost.trim() === ""
+      form.cost.trim() === ""
         ? null
-        : Number.isNaN(Number(cost))
+        : Number.isNaN(Number(form.cost))
         ? null
-        : Number(cost);
-    const dayIdValue = dayId === "" ? null : parseInt(dayId, 10);
+        : Number(form.cost);
+    const dayIdValue = form.dayId === "" ? null : parseInt(form.dayId, 10);
 
     try {
       setSaving(true);
       if (editingActivity) {
         await onUpdate(editingActivity.id, {
-          name: name.trim(),
-          category: category || undefined,
-          address: address || undefined,
+          name: form.name.trim(),
+          category: form.category || undefined,
+          address: form.address || undefined,
           day_id: dayIdValue,
           unschedule: dayIdValue === null && editingActivity.day_id != null,
           est_duration_minutes: parsedDuration,
           cost_estimate: parsedCost,
-          energy_level: energy || undefined,
-          must_do: mustDo,
+          energy_level: form.energy || undefined,
+          must_do: form.mustDo,
         });
       } else {
         await onCreate({
           trip_id: tripId,
           day_id: dayIdValue,
-          name: name.trim(),
-          category: category || undefined,
-          address: address || undefined,
+          name: form.name.trim(),
+          category: form.category || undefined,
+          address: form.address || undefined,
           est_duration_minutes: parsedDuration,
           cost_estimate: parsedCost,
-          energy_level: energy || undefined,
-          must_do: mustDo,
+          energy_level: form.energy || undefined,
+          must_do: form.mustDo,
         });
       }
-      resetForm();
+      setForm(EMPTY_FORM);
       onClose();
     } finally {
       setSaving(false);
     }
   }
-
-  const sortedDays = days
-    .slice()
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   if (!open || !mounted) return null;
 
@@ -162,15 +164,9 @@ export default function AddActivityPanel({
           onClose={onClose}
           onSubmit={handleSubmit}
           saving={saving}
-          sortedDays={sortedDays}
-          name={name} setName={setName}
-          category={category} setCategory={setCategory}
-          address={address} setAddress={setAddress}
-          dayId={dayId} setDayId={setDayId}
-          duration={duration} setDuration={setDuration}
-          cost={cost} setCost={setCost}
-          energy={energy} setEnergy={setEnergy}
-          mustDo={mustDo} setMustDo={setMustDo}
+          days={days}
+          form={form}
+          updateField={updateField}
         />
       </div>
 
@@ -181,15 +177,9 @@ export default function AddActivityPanel({
           onClose={onClose}
           onSubmit={handleSubmit}
           saving={saving}
-          sortedDays={sortedDays}
-          name={name} setName={setName}
-          category={category} setCategory={setCategory}
-          address={address} setAddress={setAddress}
-          dayId={dayId} setDayId={setDayId}
-          duration={duration} setDuration={setDuration}
-          cost={cost} setCost={setCost}
-          energy={energy} setEnergy={setEnergy}
-          mustDo={mustDo} setMustDo={setMustDo}
+          days={days}
+          form={form}
+          updateField={updateField}
         />
       </div>
     </div>
@@ -198,35 +188,25 @@ export default function AddActivityPanel({
   return createPortal(panel, document.body);
 }
 
+interface PanelContentProps {
+  isEditing: boolean;
+  onClose: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+  saving: boolean;
+  days: Day[];
+  form: FormState;
+  updateField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+}
+
 function PanelContent({
   isEditing,
   onClose,
   onSubmit,
   saving,
-  sortedDays,
-  name, setName,
-  category, setCategory,
-  address, setAddress,
-  dayId, setDayId,
-  duration, setDuration,
-  cost, setCost,
-  energy, setEnergy,
-  mustDo, setMustDo,
-}: {
-  isEditing: boolean;
-  onClose: () => void;
-  onSubmit: (e: React.FormEvent) => void;
-  saving: boolean;
-  sortedDays: Day[];
-  name: string; setName: (v: string) => void;
-  category: string; setCategory: (v: string) => void;
-  address: string; setAddress: (v: string) => void;
-  dayId: string; setDayId: (v: string) => void;
-  duration: string; setDuration: (v: string) => void;
-  cost: string; setCost: (v: string) => void;
-  energy: string; setEnergy: (v: string) => void;
-  mustDo: boolean; setMustDo: (v: boolean) => void;
-}) {
+  days,
+  form,
+  updateField,
+}: PanelContentProps) {
   return (
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
@@ -255,8 +235,8 @@ function PanelContent({
           <label className={labelClass}>Name *</label>
           <input
             className={inputClass}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+            value={form.name}
+            onChange={(e) => updateField("name", e.target.value)}
             required
             placeholder="e.g., Reading Terminal Market"
           />
@@ -266,8 +246,8 @@ function PanelContent({
           <label className={labelClass}>Category</label>
           <input
             className={inputClass}
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            value={form.category}
+            onChange={(e) => updateField("category", e.target.value)}
             placeholder="food, museum, hike..."
           />
         </div>
@@ -275,8 +255,8 @@ function PanelContent({
         <div>
           <label className={labelClass}>Address</label>
           <LocationAutocomplete
-            value={address}
-            onChange={setAddress}
+            value={form.address}
+            onChange={(val) => updateField("address", val)}
             placeholder="City or specific address"
             className={inputClass}
             types={ADDRESS_TYPES}
@@ -288,11 +268,11 @@ function PanelContent({
           <select
             className={selectClass}
             style={{ colorScheme: "light" }}
-            value={dayId}
-            onChange={(e) => setDayId(e.target.value)}
+            value={form.dayId}
+            onChange={(e) => updateField("dayId", e.target.value)}
           >
             <option value="">Uncharted (unscheduled)</option>
-            {sortedDays.map((day) => (
+            {days.map((day) => (
               <option key={day.id} value={day.id}>
                 {day.date}
                 {day.name ? ` – ${day.name}` : ""}
@@ -308,8 +288,8 @@ function PanelContent({
               type="number"
               min={0}
               className={inputClass}
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
+              value={form.duration}
+              onChange={(e) => updateField("duration", e.target.value)}
               placeholder="e.g., 90"
             />
           </div>
@@ -320,8 +300,8 @@ function PanelContent({
               min={0}
               step="1"
               className={inputClass}
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
+              value={form.cost}
+              onChange={(e) => updateField("cost", e.target.value)}
               placeholder="0 = free"
             />
           </div>
@@ -332,8 +312,8 @@ function PanelContent({
           <select
             className={selectClass}
             style={{ colorScheme: "light" }}
-            value={energy}
-            onChange={(e) => setEnergy(e.target.value)}
+            value={form.energy}
+            onChange={(e) => updateField("energy", e.target.value)}
           >
             <option value="">Not set</option>
             <option value="low">Low (relaxing)</option>
@@ -347,8 +327,8 @@ function PanelContent({
             id="panel-must-do"
             type="checkbox"
             className="h-3.5 w-3.5 rounded"
-            checked={mustDo}
-            onChange={(e) => setMustDo(e.target.checked)}
+            checked={form.mustDo}
+            onChange={(e) => updateField("mustDo", e.target.checked)}
           />
           <label htmlFor="panel-must-do" className="text-xs text-black/55">
             Mark as must-do
