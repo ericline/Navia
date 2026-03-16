@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Day, Activity } from "@/lib/api";
-import { getTodayStr } from "@/lib/utils";
+import { getTodayStr, getConstellationTheme } from "@/lib/utils";
+
+type ConstellationSize = "compact" | "default" | "reveal";
+
+const SIZE_CONFIG = {
+  compact:  { width: 200, height: 50,  baseR: 2.5, maxR: 7,  bgStars: 0  },
+  default:  { width: 400, height: 80,  baseR: 3.5, maxR: 12, bgStars: 8  },
+  reveal:   { width: 500, height: 300, baseR: 5,   maxR: 16, bgStars: 15 },
+} as const;
 
 interface TripConstellationProps {
   tripId: number;
@@ -11,8 +19,12 @@ interface TripConstellationProps {
   activitiesByDay?: Record<number, Activity[]>;
   /** When true, stars and lines draw in one-by-one with a staggered animation */
   revealAnimation?: boolean;
-  /** Compact mode for card previews */
-  compact?: boolean;
+  /** Display size */
+  size?: ConstellationSize;
+  /** Destination name — used to pick warm/cold color theme */
+  destination?: string;
+  /** Called once when reveal animation completes */
+  onRevealComplete?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -71,19 +83,38 @@ export default function TripConstellation({
   days,
   activitiesByDay = {},
   revealAnimation = false,
-  compact = false,
+  size = "default",
+  destination,
+  onRevealComplete,
 }: TripConstellationProps) {
+  const compact = size === "compact";
+  const cfg = SIZE_CONFIG[size];
   const [revealStep, setRevealStep] = useState(revealAnimation ? 0 : Infinity);
+  const [showSparkles, setShowSparkles] = useState(false);
+  const revealFiredRef = useRef(false);
 
   // Staggered reveal: increment step every 150ms
   useEffect(() => {
     if (!revealAnimation) return;
     const total = days.length * 2; // stars + lines
-    if (revealStep >= total) return;
+    if (revealStep >= total) {
+      if (!revealFiredRef.current) {
+        revealFiredRef.current = true;
+        setShowSparkles(true);
+        onRevealComplete?.();
+      }
+      return;
+    }
 
     const timer = setTimeout(() => setRevealStep((s) => s + 1), 150);
     return () => clearTimeout(timer);
-  }, [revealAnimation, revealStep, days.length]);
+  }, [revealAnimation, revealStep, days.length, onRevealComplete]);
+
+  // Color theme based on destination
+  const theme = destination ? getConstellationTheme(destination) : null;
+  const starColor = theme?.star ?? "rgb(var(--blue))";
+  const starColorFuture = theme?.line ?? "rgb(var(--lightBlue))";
+  const glowColor = theme?.glow ?? undefined;
 
   if (days.length === 0) return null;
 
@@ -92,8 +123,8 @@ export default function TripConstellation({
     .slice()
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const svgWidth = compact ? 200 : 400;
-  const svgHeight = compact ? 50 : 80;
+  const svgWidth = cfg.width;
+  const svgHeight = cfg.height;
 
   const positions = generateTripConstellation(
     sortedDays.length,
@@ -105,8 +136,8 @@ export default function TripConstellation({
   const nodes = sortedDays.map((day, i) => {
     const acts = activitiesByDay[day.id] ?? [];
     const actCount = acts.length;
-    const baseR = compact ? 2.5 : 3.5;
-    const radius = Math.min(baseR + actCount * (compact ? 0.8 : 1.5), compact ? 7 : 12);
+    const baseR = cfg.baseR;
+    const radius = Math.min(baseR + actCount * (compact ? 0.8 : 1.5), cfg.maxR);
     const glowR = Math.min(radius + 4 + actCount * 1.5, compact ? 14 : 24);
     const glowOpacity = Math.min(0.06 + actCount * 0.03, 0.25);
     const isToday = day.date === todayStr;
@@ -136,13 +167,13 @@ export default function TripConstellation({
       <svg
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="w-full"
-        style={{ height: `${svgHeight}px`, minHeight: `${svgHeight}px` }}
+        style={size === "reveal" ? undefined : { height: `${svgHeight}px`, minHeight: `${svgHeight}px` }}
         fill="none"
         preserveAspectRatio="xMidYMid meet"
       >
         {/* Faint background stars */}
-        {!compact &&
-          Array.from({ length: 8 }).map((_, i) => {
+        {cfg.bgStars > 0 &&
+          Array.from({ length: cfg.bgStars }).map((_, i) => {
             const rand = seededRandom(tripId * 1000 + i + 3);
             return (
               <circle
@@ -187,21 +218,21 @@ export default function TripConstellation({
             (prev.isToday && !node.isPast && !node.isToday) ||
             (node.isToday && !prev.isPast && !prev.isToday);
 
-          let stroke = "rgb(var(--lightBlue))";
-          let strokeWidth = compact ? 0.8 : 1.2;
-          let strokeOpacity = 0.18;
+          let stroke = starColorFuture;
+          let strokeWidth = compact ? 1.0 : 1.2;
+          let strokeOpacity = compact ? 0.35 : 0.25;
           let dashArray = compact ? "3 3" : "5 5";
           let className = "";
 
           if (bothPastOrToday) {
-            stroke = "rgb(var(--blue))";
-            strokeWidth = compact ? 1.4 : 2;
-            strokeOpacity = 0.6;
+            stroke = starColor;
+            strokeWidth = compact ? 1.8 : 2;
+            strokeOpacity = compact ? 0.8 : 0.6;
             dashArray = "none";
           } else if (isCurrentEdge) {
-            stroke = "rgb(var(--blue))";
-            strokeWidth = compact ? 1.2 : 1.8;
-            strokeOpacity = 0.45;
+            stroke = starColor;
+            strokeWidth = compact ? 1.5 : 1.8;
+            strokeOpacity = compact ? 0.6 : 0.45;
             dashArray = "none";
             className = "constellation-current-edge";
           }
@@ -240,8 +271,8 @@ export default function TripConstellation({
                   r={node.glowR}
                   fill={
                     node.isToday || node.isPast
-                      ? "rgb(var(--blue))"
-                      : "rgb(var(--lightBlue))"
+                      ? (glowColor ?? "rgb(var(--blue))")
+                      : starColorFuture
                   }
                   fillOpacity={node.glowOpacity}
                 />
@@ -254,7 +285,7 @@ export default function TripConstellation({
                     cx={node.cx}
                     cy={node.cy}
                     r={node.radius + 4}
-                    fill="rgb(var(--blue))"
+                    fill={starColor}
                     fillOpacity="0.12"
                   />
                   <circle
@@ -262,7 +293,7 @@ export default function TripConstellation({
                     cy={node.cy}
                     r={node.radius + 4}
                     fill="none"
-                    stroke="rgb(var(--blue))"
+                    stroke={starColor}
                     strokeWidth="1"
                   >
                     <animate
@@ -290,10 +321,10 @@ export default function TripConstellation({
                 r={node.radius}
                 fill={
                   node.isToday || node.isPast
-                    ? "rgb(var(--blue))"
-                    : "rgb(var(--lightBlue))"
+                    ? starColor
+                    : starColorFuture
                 }
-                fillOpacity={node.isToday ? 1 : node.isPast ? 0.8 : 0.35}
+                fillOpacity={node.isToday ? 1 : node.isPast ? (compact ? 0.9 : 0.8) : (compact ? 0.55 : 0.35)}
                 className={node.isToday && !compact ? "constellation-star-today" : ""}
               />
 
@@ -310,6 +341,31 @@ export default function TripConstellation({
             </g>
           );
         })}
+
+        {/* Sparkle effect on reveal completion */}
+        {showSparkles && (() => {
+          const sparkleRand = seededRandom(tripId * 3571);
+          const sparkleCount = Math.min(6 + Math.floor(sparkleRand() * 5), 10);
+          return Array.from({ length: sparkleCount }).map((_, si) => {
+            const nodeIdx = Math.floor(sparkleRand() * nodes.length);
+            const node = nodes[nodeIdx];
+            const offX = (sparkleRand() - 0.5) * 30;
+            const offY = (sparkleRand() - 0.5) * 20;
+            return (
+              <circle
+                key={`sparkle-${si}`}
+                cx={node.cx + offX}
+                cy={node.cy + offY}
+                r={1.2 + sparkleRand() * 1}
+                fill="white"
+                style={{
+                  animation: `constellationSparkle 600ms ease-out ${si * 100}ms both`,
+                  transformOrigin: `${node.cx + offX}px ${node.cy + offY}px`,
+                }}
+              />
+            );
+          });
+        })()}
       </svg>
     </div>
   );

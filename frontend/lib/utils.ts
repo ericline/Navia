@@ -50,6 +50,73 @@ export function sortByStartAsc(a: Trip, b: Trip) {
   return new Date(a.start_date + "T00:00:00").getTime() - new Date(b.start_date + "T00:00:00").getTime();
 }
 
+// ---------- Constellation color themes ----------
+
+export type ConstellationTheme = {
+  star: string;
+  line: string;
+  glow: string;
+};
+
+const WARM_KEYWORDS = ["beach", "tropical", "island", "caribbean", "hawaii", "bali", "mexico", "thailand", "miami", "cancun"];
+const COLD_KEYWORDS = ["ski", "snow", "arctic", "nordic", "iceland", "alaska", "alps", "switzerland", "norway", "finland"];
+
+export function getConstellationTheme(destination: string): ConstellationTheme | null {
+  const lower = destination.toLowerCase();
+  if (WARM_KEYWORDS.some((k) => lower.includes(k))) {
+    return { star: "rgb(235, 180, 80)", line: "rgb(215, 165, 75)", glow: "rgb(235, 180, 80)" };
+  }
+  if (COLD_KEYWORDS.some((k) => lower.includes(k))) {
+    return { star: "rgb(180, 210, 240)", line: "rgb(160, 195, 230)", glow: "rgb(180, 210, 240)" };
+  }
+  return null;
+}
+
+// ---------- Location formatting ----------
+
+const US_STATE_ABBREVIATIONS: Record<string, string> = {
+  "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+  "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+  "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
+  "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
+  "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+  "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+  "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
+  "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
+  "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
+  "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+  "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
+  "Vermont": "VT", "Virginia": "VA", "Washington": "WA", "West Virginia": "WV",
+  "Wisconsin": "WI", "Wyoming": "WY", "District of Columbia": "DC",
+};
+
+const US_COUNTRY_SUFFIXES = [
+  ", United States of America",
+  ", United States",
+  ", USA",
+  ", US",
+];
+
+export function formatDestination(destination: string): string {
+  let result = destination;
+  for (const suffix of US_COUNTRY_SUFFIXES) {
+    if (result.endsWith(suffix)) {
+      result = result.slice(0, -suffix.length);
+      break;
+    }
+  }
+  const parts = result.split(",").map((s) => s.trim());
+  if (parts.length >= 2) {
+    const last = parts[parts.length - 1];
+    const abbr = US_STATE_ABBREVIATIONS[last];
+    if (abbr) {
+      parts[parts.length - 1] = abbr;
+      return parts.join(", ");
+    }
+  }
+  return result;
+}
+
 // ---------- Category colors ----------
 
 export type CategoryKey = "food" | "museum" | "hike" | "transport" | "hotel" | "other";

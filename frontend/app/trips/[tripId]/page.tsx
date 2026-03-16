@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Trip,
@@ -17,12 +17,14 @@ import {
   deleteActivity,
   deleteTrip,
 } from "@/lib/api";
-import { Plus } from "lucide-react";
+import { Plus, Share2 } from "lucide-react";
 import TripHeader from "@/components/TripHeader";
 import TripCalendarStrip from "@/components/TripCalendarStrip";
 import UnscheduledDock from "@/components/UnscheduledDock";
 import AddActivityPanel from "@/components/AddActivityPanel";
 import TripConstellation from "@/components/TripConstellation";
+import CollaboratorPanel from "@/components/CollaboratorPanel";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function TripDetailPage() {
   const params = useParams();
@@ -49,6 +51,12 @@ export default function TripDetailPage() {
 
   // Constellation reveal overlay (shown on Finish)
   const [showReveal, setShowReveal] = useState(false);
+  const [revealDone, setRevealDone] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  // Collaborator panel
+  const [collabOpen, setCollabOpen] = useState(false);
+  const { user } = useAuth();
 
   // Guard against React Strict Mode double-firing the generate call
   const generatingRef = useRef(false);
@@ -132,12 +140,94 @@ export default function TripDetailPage() {
 
   function handleFinish() {
     setShowReveal(true);
-    // Let the constellation reveal animation play, then navigate
-    const totalStars = sortedDays.length;
-    const revealDuration = totalStars * 2 * 150 + 1200; // stars + lines + pause
-    setTimeout(() => {
-      router.push("/");
-    }, revealDuration);
+    setRevealDone(false);
+  }
+
+  function handleRevealComplete() {
+    setRevealDone(true);
+  }
+
+  const constellationLiveUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/constellation/${tripId}`
+    : `/constellation/${tripId}`;
+
+  // CSS variable color map for SVG serialization
+  const COLOR_MAP: Record<string, string> = {
+    "rgb(var(--blue))": "rgb(75,134,180)",
+    "rgb(var(--lightBlue))": "rgb(149,184,209)",
+    "rgb(var(--darkBlue))": "rgb(43,65,98)",
+    "rgb(var(--pink))": "rgb(184,107,119)",
+  };
+
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const handleShareImage = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const svgEl = document.querySelector<SVGSVGElement>(".constellation-reveal-overlay svg");
+    if (!svgEl) return;
+
+    const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
+    let svgString = new XMLSerializer().serializeToString(svgClone);
+
+    // Resolve CSS variables
+    for (const [cssVar, resolved] of Object.entries(COLOR_MAP)) {
+      svgString = svgString.replaceAll(cssVar, resolved);
+    }
+
+    const viewBox = svgEl.getAttribute("viewBox")?.split(" ").map(Number) ?? [0, 0, 500, 300];
+    const padding = 40;
+    const canvasW = viewBox[2] + padding * 2;
+    const canvasH = viewBox[3] + padding * 2;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = canvasW * 2;
+    canvas.height = canvasH * 2;
+    const ctx = canvas.getContext("2d")!;
+    ctx.scale(2, 2);
+
+    // Warm background
+    ctx.fillStyle = "rgb(250, 248, 246)";
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    const img = new Image();
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    await new Promise<void>((resolve) => {
+      img.onload = () => {
+        ctx.drawImage(img, padding, padding, viewBox[2], viewBox[3]);
+        URL.revokeObjectURL(url);
+        resolve();
+      };
+      img.src = url;
+    });
+
+    // Add trip name
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.font = "bold 14px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(trip?.name ?? "", canvasW / 2, canvasH - 12);
+
+    canvas.toBlob(async (pngBlob) => {
+      if (!pngBlob) return;
+      const file = new File([pngBlob], `${trip?.name ?? "constellation"}.png`, { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); } catch {}
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(pngBlob);
+        a.download = file.name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+    }, "image/png");
+  }, [trip?.name, tripId]);
+
+  async function handleCopyLink(e: React.MouseEvent) {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(constellationLiveUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   function handleOpenPanel(dayId?: number) {
@@ -216,6 +306,7 @@ export default function TripDetailPage() {
         trip={trip}
         onDelete={handleDeleteTrip}
         onFinish={handleFinish}
+        onCollaborators={() => setCollabOpen(true)}
       />
 
       {sortedDays.length > 0 ? (
@@ -269,9 +360,22 @@ export default function TripDetailPage() {
         editingActivity={editingActivity}
       />
 
+      {/* Collaborator panel */}
+      <CollaboratorPanel
+        open={collabOpen}
+        onClose={() => setCollabOpen(false)}
+        tripId={tripId}
+        isOwner={!!user && !!trip}
+        ownerName={user?.name ?? ""}
+        ownerEmail={user?.email ?? ""}
+      />
+
       {/* Constellation reveal overlay */}
       {showReveal && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-warmBg constellation-reveal-overlay">
+        <div
+          className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-warmBg constellation-reveal-overlay ${revealDone ? "cursor-pointer" : ""}`}
+          onClick={() => revealDone && router.push("/")}
+        >
           <p className="text-sm text-black/40 mb-2 tracking-wide uppercase constellation-reveal-title">
             Your constellation
           </p>
@@ -284,12 +388,38 @@ export default function TripDetailPage() {
               tripName={trip.name}
               days={sortedDays}
               activitiesByDay={activitiesByDay}
+              destination={trip.destination}
+              size="reveal"
               revealAnimation
+              onRevealComplete={handleRevealComplete}
             />
           </div>
           <p className="mt-8 text-xs text-black/30 constellation-reveal-title">
             Trip saved
           </p>
+          <div
+            className="mt-4 flex flex-col items-center gap-3 transition-opacity duration-500"
+            style={{ opacity: revealDone ? 1 : 0 }}
+          >
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleShareImage}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue/90 hover:bg-blue text-xs font-semibold text-white transition"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Share Image
+              </button>
+              <button
+                onClick={handleCopyLink}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/[0.06] hover:bg-black/[0.10] text-xs text-black/50 transition"
+              >
+                {linkCopied ? "Link copied!" : "Copy Link"}
+              </button>
+            </div>
+            <p className="text-[11px] text-black/25">
+              Tap anywhere to continue
+            </p>
+          </div>
         </div>
       )}
     </main>

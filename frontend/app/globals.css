@@ -207,6 +207,33 @@ body {
   animation: fadeIn 0.2s ease-out;
 }
 
+/* Book open/close animation */
+@keyframes bookOpen {
+  0%   { transform: rotateY(0deg); }
+  100% { transform: rotateY(-180deg); }
+}
+
+@keyframes bookContentFadeIn {
+  0%   { opacity: 0; transform: scale(0.97); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.book-open {
+  animation: bookOpen 600ms ease-in-out forwards;
+  transform-origin: left center;
+}
+
+.book-content-fade-in {
+  animation: bookContentFadeIn 400ms ease-out 200ms both;
+}
+
+/* Constellation sparkle effect on reveal completion */
+@keyframes constellationSparkle {
+  0%   { transform: scale(0); opacity: 0; }
+  40%  { transform: scale(1.5); opacity: 1; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
 /* Dark-themed activity cards inside the unscheduled dock */
 .dock-card * {
   color: rgba(255, 255, 255, 0.7) !important;

@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react";
 
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, updateUser as apiUpdateUser, UserUpdate } from "@/lib/api";
 
 const API = API_BASE_URL;
 
@@ -30,6 +30,7 @@ interface AuthContextType {
     birthday: string
   ) => Promise<void>;
   logout: () => void;
+  updateUser: (data: UserUpdate) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -103,8 +104,13 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  async function updateUserProfile(data: UserUpdate) {
+    const updated = await apiUpdateUser(data);
+    setUser(updated);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, updateUser: updateUserProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -28,6 +28,12 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    email: Optional[EmailStr] = None
+    birthday: Optional[date] = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -121,3 +127,29 @@ class Activity(ActivityBase):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------- Collaborator Schemas ----------
+
+# ---------- Public Trip Schema ----------
+
+class TripPublic(BaseModel):
+    id: int
+    name: str
+    destination: str
+    start_date: date
+    end_date: date
+    day_count: int
+
+
+class CollaboratorInvite(BaseModel):
+    email: EmailStr
+    role: str = "editor"
+
+
+class CollaboratorOut(BaseModel):
+    id: int
+    user_id: int
+    user_name: str
+    user_email: str
+    role: str

@@ -48,3 +48,20 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user: models.User = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/me", response_model=schemas.UserOut)
+def update_me(
+    update: schemas.UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if "email" in update.model_fields_set and update.email != current_user.email:
+        existing = crud.get_user_by_email(db, update.email)
+        if existing and existing.id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="An account with that email already exists",
+            )
+    user = crud.update_user(db, current_user.id, update)
+    return user

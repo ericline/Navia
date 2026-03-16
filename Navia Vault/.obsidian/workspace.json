@@ -1,0 +1,228 @@
+{
+  "main": {
+    "id": "3ad3340489259217",
+    "type": "split",
+    "children": [
+      {
+        "id": "3e4b0d59ea3bd1c2",
+        "type": "tabs",
+        "dimension": 71.41025641025641,
+        "children": [
+          {
+            "id": "196c54405f05a6a1",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Sessions/2026-03-13 Session 01.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2026-03-13 Session 01"
+            }
+          },
+          {
+            "id": "7a8b929e9be88a3d",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Navia Project Details.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Navia Project Details"
+            }
+          }
+        ]
+      },
+      {
+        "id": "29da3c6241e6c31d",
+        "type": "tabs",
+        "dimension": 28.589743589743588,
+        "children": [
+          {
+            "id": "406a101ea3c40c17",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "eda5d86f499fed08",
+    "type": "split",
+    "children": [
+      {
+        "id": "2280c1aefd020a9b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b92088523c4e487b",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "b06ea366121489de",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "34fb950326c49323",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 200
+  },
+  "right": {
+    "id": "fb1a3c46aea54035",
+    "type": "split",
+    "children": [
+      {
+        "id": "e19d4b544379c5fd",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1b57f60fbd36f194",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Navia Project Details.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Navia Project Details"
+            }
+          },
+          {
+            "id": "a1af87266f56b24f",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Navia Project Details.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Navia Project Details"
+            }
+          },
+          {
+            "id": "dd82de560c1ca7de",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "a7746426791c153e",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "6bcbcf6ab2f2f5cb",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Navia Project Details.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Navia Project Details"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "406a101ea3c40c17",
+  "lastOpenFiles": [
+    "Sessions/2026-03-13 Session 01.md",
+    "Navia Project Details.md",
+    "Useful SWE Websites.md",
+    "Claude.md.md",
+    "2026-03-12.md",
+    "Untitled.canvas",
+    "Welcome.md"
+  ]
+}

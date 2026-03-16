@@ -88,6 +88,49 @@ export interface ActivityUpdate {
   unschedule?: boolean;
 }
 
+// ---------- User API ----------
+
+export interface UserUpdate {
+  name?: string;
+  email?: string;
+  birthday?: string | null;
+}
+
+export async function updateUser(data: UserUpdate): Promise<{
+  id: number;
+  name: string;
+  email: string;
+  birthday: string | null;
+}> {
+  const res = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Update failed" }));
+    throw new Error(err.detail ?? "Update failed");
+  }
+  return res.json();
+}
+
+// ---------- Public API ----------
+
+export interface TripPublic {
+  id: number;
+  name: string;
+  destination: string;
+  start_date: string;
+  end_date: string;
+  day_count: number;
+}
+
+export async function fetchTripConstellation(tripId: number): Promise<TripPublic> {
+  const res = await fetch(`${API_BASE_URL}/trips/${tripId}/constellation`);
+  if (!res.ok) throw new Error("Failed to fetch constellation");
+  return res.json();
+}
+
 // ---------- Trip API ----------
 
 export async function fetchTrips(): Promise<Trip[]> {
@@ -237,5 +280,51 @@ export async function deleteActivity(id: number): Promise<void> {
   if (!res.ok) {
     console.error("deleteActivity failed", res.status, await res.text());
     throw new Error("Failed to delete activity");
+  }
+}
+
+// ---------- Collaborators API ----------
+
+export interface Collaborator {
+  id: number;
+  user_id: number;
+  user_name: string;
+  user_email: string;
+  role: string;
+}
+
+export async function fetchCollaborators(tripId: number): Promise<Collaborator[]> {
+  const res = await fetch(`${API_BASE_URL}/trips/${tripId}/collaborators`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) throw new Error("Failed to fetch collaborators");
+  return res.json();
+}
+
+export async function addCollaborator(
+  tripId: number,
+  email: string,
+  role: string = "editor"
+): Promise<Collaborator> {
+  const res = await fetch(`${API_BASE_URL}/trips/${tripId}/collaborators`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ email, role }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to add collaborator" }));
+    throw new Error(err.detail ?? "Failed to add collaborator");
+  }
+  return res.json();
+}
+
+export async function removeCollaborator(tripId: number, userId: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/trips/${tripId}/collaborators/${userId}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Failed to remove collaborator" }));
+    throw new Error(err.detail ?? "Failed to remove collaborator");
   }
 }

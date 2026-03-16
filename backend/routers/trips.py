@@ -1,6 +1,6 @@
 # backend/routers/trips.py
 from typing import List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 import crud
@@ -33,6 +33,26 @@ def read_trip(
     return verify_trip_access(db, trip_id, current_user)
 
 
+@router.get("/{trip_id}/constellation", response_model=schemas.TripPublic)
+def get_trip_constellation(
+    trip_id: int,
+    db: Session = Depends(get_db),
+):
+    """Public endpoint — no auth required. Returns basic trip info + day count."""
+    trip = crud.get_trip(db, trip_id)
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    day_count = len(crud.get_days_for_trip(db, trip_id))
+    return {
+        "id": trip.id,
+        "name": trip.name,
+        "destination": trip.destination,
+        "start_date": trip.start_date,
+        "end_date": trip.end_date,
+        "day_count": day_count,
+    }
+
+
 @router.post("/", response_model=schemas.Trip)
 def create_trip(
     trip: schemas.TripCreate,
@@ -61,3 +81,58 @@ def delete_trip(
     trip = verify_trip_access(db, trip_id, current_user)
     db.delete(trip)
     db.commit()
+
+
+# ---------- Collaborators ----------
+
+@router.get("/{trip_id}/collaborators", response_model=List[schemas.CollaboratorOut])
+def list_collaborators(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    verify_trip_access(db, trip_id, current_user)
+    return crud.get_collaborators(db, trip_id)
+
+
+@router.post("/{trip_id}/collaborators", response_model=schemas.CollaboratorOut)
+def invite_collaborator(
+    trip_id: int,
+    invite: schemas.CollaboratorInvite,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    trip = verify_trip_access(db, trip_id, current_user)
+    if trip.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the trip owner can invite collaborators")
+    target_user = crud.get_user_by_email(db, invite.email)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found — they must register first")
+    if target_user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You are already the owner")
+    # Check if already a collaborator
+    existing = crud.get_collaborators(db, trip_id)
+    if any(c["user_id"] == target_user.id for c in existing):
+        raise HTTPException(status_code=400, detail="User is already a collaborator")
+    collab = crud.add_collaborator(db, trip_id, target_user.id, invite.role)
+    return {
+        "id": collab.id,
+        "user_id": target_user.id,
+        "user_name": target_user.name,
+        "user_email": target_user.email,
+        "role": collab.role,
+    }
+
+
+@router.delete("/{trip_id}/collaborators/{user_id}", status_code=204)
+def remove_collaborator(
+    trip_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    trip = verify_trip_access(db, trip_id, current_user)
+    if trip.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the trip owner can remove collaborators")
+    if not crud.remove_collaborator(db, trip_id, user_id):
+        raise HTTPException(status_code=404, detail="Collaborator not found")

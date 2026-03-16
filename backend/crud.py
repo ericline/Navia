@@ -26,6 +26,22 @@ def create_user(db: Session, user_in: schemas.UserCreate) -> models.User:
     return db_user
 
 
+def update_user(db: Session, user_id: int, update: schemas.UserUpdate) -> models.User | None:
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        return None
+    provided = update.model_fields_set
+    if "name" in provided:
+        db_user.name = update.name
+    if "email" in provided:
+        db_user.email = update.email
+    if "birthday" in provided:
+        db_user.birthday = update.birthday
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
 # ---------- Trip CRUD ----------
 
 def get_trips_for_user(db: Session, user_id: int, skip: int = 0, limit: int = 100):
@@ -185,5 +201,51 @@ def delete_activity(db: Session, activity_id: int):
     if not db_activity:
         return False
     db.delete(db_activity)
+    db.commit()
+    return True
+
+
+# ---------- Collaborator CRUD ----------
+
+def get_collaborators(db: Session, trip_id: int):
+    rows = (
+        db.query(models.TripCollaborator)
+        .filter(models.TripCollaborator.trip_id == trip_id)
+        .all()
+    )
+    result = []
+    for c in rows:
+        user = db.query(models.User).filter(models.User.id == c.user_id).first()
+        if user:
+            result.append({
+                "id": c.id,
+                "user_id": c.user_id,
+                "user_name": user.name,
+                "user_email": user.email,
+                "role": c.role,
+            })
+    return result
+
+
+def add_collaborator(db: Session, trip_id: int, user_id: int, role: str = "editor"):
+    collab = models.TripCollaborator(trip_id=trip_id, user_id=user_id, role=role)
+    db.add(collab)
+    db.commit()
+    db.refresh(collab)
+    return collab
+
+
+def remove_collaborator(db: Session, trip_id: int, user_id: int):
+    collab = (
+        db.query(models.TripCollaborator)
+        .filter(
+            models.TripCollaborator.trip_id == trip_id,
+            models.TripCollaborator.user_id == user_id,
+        )
+        .first()
+    )
+    if not collab:
+        return False
+    db.delete(collab)
     db.commit()
     return True

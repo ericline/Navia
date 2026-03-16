@@ -22,6 +22,7 @@ import {
 } from "@/lib/api";
 import {
   formatDate,
+  formatDestination,
   daysUntil,
   isPastTrip,
   isCurrentOrUpcoming,
@@ -50,27 +51,29 @@ type BucketItem = {
 function UpcomingTripCard({ trip }: { trip: Trip }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<Day[]>([]);
   const [acts, setActs] = useState<Activity[]>([]);
 
-  async function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && days.length === 0 && !loading) {
+  // Eagerly fetch days + activities on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
       try {
-        setLoading(true);
         const [d, a] = await Promise.all([
           fetchDaysForTrip(trip.id),
           fetchActivitiesForTrip(trip.id),
         ]);
-        setDays(d);
-        setActs(a);
+        if (!cancelled) {
+          setDays(d);
+          setActs(a);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    }
-  }
+    })();
+    return () => { cancelled = true; };
+  }, [trip.id]);
 
   const actsByDay = useMemo(() => {
     const map: Record<number, Activity[]> = {};
@@ -81,10 +84,15 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
     return map;
   }, [acts]);
 
+  const sortedDays = useMemo(
+    () => days.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [days]
+  );
+
   return (
     <div className="glass-subtle bg-warmCard rounded-2xl overflow-hidden transition-all duration-200 hover:bg-warmCard/80">
       <button
-        onClick={toggle}
+        onClick={() => setOpen((o) => !o)}
         className="w-full text-left p-4 flex items-start gap-4"
       >
         <div className="mt-1.5 h-2 w-2 rounded-full bg-pink/70 shrink-0" />
@@ -99,12 +107,26 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
           <div className="flex items-center gap-1.5 mt-1">
             <MapPin className="h-3 w-3 text-black/50 shrink-0" />
             <span className="text-xs text-black/50 truncate">
-              {trip.destination}
+              {formatDestination(trip.destination)}
             </span>
           </div>
           <div className="text-[11px] text-black/35 mt-1">
             {formatDate(trip.start_date)} — {formatDate(trip.end_date)}
           </div>
+
+          {/* Always-visible compact constellation */}
+          {!loading && sortedDays.length > 0 && (
+            <div className="mt-2">
+              <TripConstellation
+                tripId={trip.id}
+                tripName={trip.name}
+                days={sortedDays}
+                activitiesByDay={actsByDay}
+                destination={trip.destination}
+                size="compact"
+              />
+            </div>
+          )}
         </div>
 
         <ChevronDown
@@ -131,26 +153,7 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {/* Mini constellation preview */}
-                <TripConstellation
-                  tripId={trip.id}
-                  tripName={trip.name}
-                  days={days
-                    .slice()
-                    .sort(
-                      (a, b) =>
-                        new Date(a.date).getTime() - new Date(b.date).getTime()
-                    )}
-                  activitiesByDay={actsByDay}
-                  compact
-                />
-                {days
-                  .slice()
-                  .sort(
-                    (a, b) =>
-                      new Date(a.date).getTime() - new Date(b.date).getTime()
-                  )
-                  .map((d) => (
+                {sortedDays.map((d) => (
                     <div
                       key={d.id}
                       className="flex items-center justify-between rounded-xl bg-black/[0.04] px-3 py-2"
@@ -237,7 +240,7 @@ function PastTripCard({ trip }: { trip: Trip }) {
         <div className="min-w-0 flex-1">
           <div className="text-sm text-black/65 truncate">{trip.name}</div>
           <div className="text-[11px] text-black/35">
-            {trip.destination} · {formatDate(trip.start_date)} —{" "}
+            {formatDestination(trip.destination)} · {formatDate(trip.start_date)} —{" "}
             {formatDate(trip.end_date)}
           </div>
         </div>
@@ -249,7 +252,8 @@ function PastTripCard({ trip }: { trip: Trip }) {
             tripName={trip.name}
             days={sortedDays}
             activitiesByDay={actsByDay}
-            compact
+            destination={trip.destination}
+            size="compact"
           />
         </div>
       )}
