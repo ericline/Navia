@@ -24,6 +24,17 @@ def read_trips(
     return crud.get_trips_for_user(db, current_user.id, skip=skip, limit=limit)
 
 
+@router.get("/detailed", response_model=List[schemas.TripDetailed])
+def read_trips_detailed(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Return all trips with nested days and activities in a single response."""
+    return crud.get_trips_detailed_for_user(db, current_user.id, skip=skip, limit=limit)
+
+
 @router.get("/{trip_id}", response_model=schemas.Trip)
 def read_trip(
     trip_id: int,

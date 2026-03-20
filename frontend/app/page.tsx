@@ -15,9 +15,8 @@ import {
   Activity,
   Day,
   Trip,
-  fetchTrips,
-  fetchDaysForTrip,
-  fetchActivitiesForTrip,
+  TripDetailed,
+  fetchTripsDetailed,
   createTrip,
 } from "@/lib/api";
 import {
@@ -48,32 +47,12 @@ type BucketItem = {
 /*  Upcoming trip card (expandable)                                    */
 /* ------------------------------------------------------------------ */
 
-function UpcomingTripCard({ trip }: { trip: Trip }) {
+function UpcomingTripCard({ trip }: { trip: TripDetailed }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [days, setDays] = useState<Day[]>([]);
-  const [acts, setActs] = useState<Activity[]>([]);
 
-  // Eagerly fetch days + activities on mount
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [d, a] = await Promise.all([
-          fetchDaysForTrip(trip.id),
-          fetchActivitiesForTrip(trip.id),
-        ]);
-        if (!cancelled) {
-          setDays(d);
-          setActs(a);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [trip.id]);
+  const days = trip.days;
+  const acts = trip.activities;
 
   const actsByDay = useMemo(() => {
     const map: Record<number, Activity[]> = {};
@@ -115,7 +94,7 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
           </div>
 
           {/* Always-visible compact constellation */}
-          {!loading && sortedDays.length > 0 && (
+          {sortedDays.length > 0 && (
             <div className="mt-2">
               <TripConstellation
                 tripId={trip.id}
@@ -139,9 +118,7 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
       {open && (
         <div className="px-4 pb-4">
           <div className="border-t border-black/[0.06] pt-3">
-            {loading ? (
-              <p className="text-xs text-black/40">Loading days...</p>
-            ) : days.length === 0 ? (
+            {days.length === 0 ? (
               <div className="text-center py-3">
                 <p className="text-xs text-black/40">No days generated yet</p>
                 <button
@@ -190,31 +167,11 @@ function UpcomingTripCard({ trip }: { trip: Trip }) {
 /*  Past trip card with lazy-loaded constellation                      */
 /* ------------------------------------------------------------------ */
 
-function PastTripCard({ trip }: { trip: Trip }) {
+function PastTripCard({ trip }: { trip: TripDetailed }) {
   const router = useRouter();
-  const [days, setDays] = useState<Day[]>([]);
-  const [acts, setActs] = useState<Activity[]>([]);
-  const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [d, a] = await Promise.all([
-          fetchDaysForTrip(trip.id),
-          fetchActivitiesForTrip(trip.id),
-        ]);
-        if (!cancelled) {
-          setDays(d);
-          setActs(a);
-          setLoaded(true);
-        }
-      } catch {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [trip.id]);
+  const days = trip.days;
+  const acts = trip.activities;
 
   const actsByDay = useMemo(() => {
     const map: Record<number, Activity[]> = {};
@@ -245,7 +202,7 @@ function PastTripCard({ trip }: { trip: Trip }) {
           </div>
         </div>
       </div>
-      {loaded && sortedDays.length > 0 && (
+      {sortedDays.length > 0 && (
         <div className="mt-1.5">
           <TripConstellation
             tripId={trip.id}
@@ -574,7 +531,7 @@ export default function HomePage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const [trips, setTrips] = useState<TripDetailed[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
 
   const [bucket, setBucket] = useState<BucketItem[]>([]);
@@ -605,7 +562,7 @@ export default function HomePage() {
     (async () => {
       try {
         setLoadingTrips(true);
-        const t = await fetchTrips();
+        const t = await fetchTripsDetailed();
         setTrips(t);
       } finally {
         setLoadingTrips(false);

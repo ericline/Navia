@@ -142,6 +142,21 @@ class TripPublic(BaseModel):
     day_count: int
 
 
+# ---------- Aggregated Trip Schema (home page) ----------
+
+class TripDetailed(BaseModel):
+    id: int
+    name: str
+    destination: str
+    start_date: date
+    end_date: date
+    timezone: str
+    days: list[Day]
+    activities: list[Activity]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CollaboratorInvite(BaseModel):
     email: EmailStr
     role: str = "editor"

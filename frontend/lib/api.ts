@@ -131,6 +131,24 @@ export async function fetchTripConstellation(tripId: number): Promise<TripPublic
   return res.json();
 }
 
+// ---------- Aggregated Trip API ----------
+
+export interface TripDetailed extends Trip {
+  days: Day[];
+  activities: Activity[];
+}
+
+export async function fetchTripsDetailed(): Promise<TripDetailed[]> {
+  const res = await fetch(`${API_BASE_URL}/trips/detailed`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    console.error("fetchTripsDetailed failed", res.status, await res.text());
+    throw new Error("Failed to fetch detailed trips");
+  }
+  return res.json();
+}
+
 // ---------- Trip API ----------
 
 export async function fetchTrips(): Promise<Trip[]> {

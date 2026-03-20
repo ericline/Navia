@@ -1,6 +1,6 @@
 # backend/crud.py
 from datetime import timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 import models
 import schemas
@@ -59,6 +59,34 @@ def get_trips_for_user(db: Session, user_id: int, skip: int = 0, limit: int = 10
     }
     collab_trips = (
         db.query(models.Trip)
+        .filter(models.Trip.id.in_(collab_ids))
+        .all()
+        if collab_ids
+        else []
+    )
+    all_trips = {t.id: t for t in owned + collab_trips}
+    trips = list(all_trips.values())
+    trips.sort(key=lambda t: t.id)
+    return trips[skip : skip + limit]
+
+
+def get_trips_detailed_for_user(db: Session, user_id: int, skip: int = 0, limit: int = 100):
+    """Return trips with eager-loaded days and activities in a single query."""
+    owned = (
+        db.query(models.Trip)
+        .options(joinedload(models.Trip.days), joinedload(models.Trip.activities))
+        .filter(models.Trip.owner_id == user_id)
+        .all()
+    )
+    collab_ids = {
+        row.trip_id
+        for row in db.query(models.TripCollaborator)
+        .filter(models.TripCollaborator.user_id == user_id)
+        .all()
+    }
+    collab_trips = (
+        db.query(models.Trip)
+        .options(joinedload(models.Trip.days), joinedload(models.Trip.activities))
         .filter(models.Trip.id.in_(collab_ids))
         .all()
         if collab_ids
