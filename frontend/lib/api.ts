@@ -60,6 +60,7 @@ export interface Activity {
   cost_estimate?: number | null;
   energy_level?: string | null;
   must_do: boolean;
+  start_time?: string | null;
 }
 
 export interface ActivityCreate {
@@ -70,10 +71,14 @@ export interface ActivityCreate {
   category?: string;
   address?: string;
 
+  lat?: number | null;
+  lng?: number | null;
+
   est_duration_minutes?: number | null;
   cost_estimate?: number | null;
   energy_level?: string | null;
   must_do?: boolean;
+  start_time?: string | null;
 }
 
 export interface ActivityUpdate {
@@ -81,10 +86,13 @@ export interface ActivityUpdate {
   name?: string;
   category?: string;
   address?: string;
+  lat?: number | null;
+  lng?: number | null;
   est_duration_minutes?: number | null;
   cost_estimate?: number | null;
   energy_level?: string | null;
   must_do?: boolean;
+  start_time?: string | null;
   unschedule?: boolean;
 }
 

@@ -191,6 +191,7 @@ def create_activity(db: Session, activity: schemas.ActivityCreate):
         cost_estimate=activity.cost_estimate,
         energy_level=activity.energy_level,
         must_do=activity.must_do,
+        start_time=activity.start_time,
     )
     db.add(db_activity)
     db.commit()
@@ -214,6 +215,7 @@ def update_activity(db: Session, activity_id: int, update: schemas.ActivityUpdat
     updatable_fields = [
         "name", "category", "address", "lat", "lng",
         "est_duration_minutes", "cost_estimate", "energy_level", "must_do",
+        "start_time",
     ]
     for field in updatable_fields:
         if field in provided:

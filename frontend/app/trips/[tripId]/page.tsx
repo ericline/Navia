@@ -120,6 +120,15 @@ export default function TripDetailPage() {
       (activitiesByDay[activity.day_id] ??= []).push(activity);
     }
   }
+  // Sort each day's activities by start_time (nulls at end)
+  for (const dayId of Object.keys(activitiesByDay)) {
+    activitiesByDay[Number(dayId)].sort((a, b) => {
+      if (!a.start_time && !b.start_time) return 0;
+      if (!a.start_time) return 1;
+      if (!b.start_time) return -1;
+      return a.start_time.localeCompare(b.start_time);
+    });
+  }
 
   // Refresh activities from server
   async function refreshActivities() {
@@ -319,6 +328,7 @@ export default function TripDetailPage() {
           onEditActivity={handleEditActivity}
           onDeleteActivity={handleDeleteActivity}
           tripName={trip.name}
+          onViewDayMap={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
         />
       ) : (
         <section className="glass bg-warmSurface rounded-2xl p-8 text-center">
@@ -392,6 +402,7 @@ export default function TripDetailPage() {
               size="reveal"
               revealAnimation
               onRevealComplete={handleRevealComplete}
+              onDayClick={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
             />
           </div>
           <p className="mt-8 text-xs text-black/30 constellation-reveal-title">

@@ -1,5 +1,5 @@
 # backend/schemas.py
-from datetime import date
+from datetime import date, time
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
@@ -102,6 +102,7 @@ class ActivityBase(BaseModel):
     cost_estimate: Optional[float] = Field(None, ge=0)
     energy_level: Optional[str] = Field(None, max_length=50)
     must_do: bool = False
+    start_time: Optional[time] = None
 
 
 class ActivityCreate(ActivityBase):
@@ -119,6 +120,7 @@ class ActivityUpdate(BaseModel):
     cost_estimate: Optional[float] = Field(None, ge=0)
     energy_level: Optional[str] = Field(None, max_length=50)
     must_do: Optional[bool] = None
+    start_time: Optional[time] = None
     # sentinel to allow explicitly setting day_id to null (unschedule)
     unschedule: bool = False
 

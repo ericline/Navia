@@ -1,7 +1,7 @@
 "use client";
 
 import { Activity } from "@/lib/api";
-import { getCategoryKey, CATEGORY_ACCENT_CLASSES } from "@/lib/utils";
+import { getCategoryKey, CATEGORY_ACCENT_CLASSES, formatTime } from "@/lib/utils";
 import { Star, Clock, DollarSign, Zap, Pencil, Trash2 } from "lucide-react";
 
 function getAccentColor(category?: string | null): string {
@@ -35,6 +35,9 @@ export default function ActivityCard({
       <div className="flex-1 px-2.5 py-2 min-w-0">
         <div className="flex items-start justify-between gap-1">
           <span className="text-xs font-medium text-black/80 leading-tight truncate">
+            {formatTime(activity.start_time) && (
+              <span className="text-black/40 mr-1">{formatTime(activity.start_time)}</span>
+            )}
             {activity.name}
           </span>
           <div className="flex items-center gap-0.5 shrink-0">

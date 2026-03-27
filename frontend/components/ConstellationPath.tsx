@@ -9,6 +9,7 @@ interface ConstellationPathProps {
   weekOffset: number;
   visibleCount: number;
   tripName?: string;
+  onDayClick?: (dayId: number) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -69,6 +70,7 @@ export default function ConstellationPath({
   weekOffset,
   visibleCount,
   tripName,
+  onDayClick,
 }: ConstellationPathProps) {
   const visibleDays = days.slice(weekOffset, weekOffset + visibleCount);
   if (visibleDays.length === 0) return null;
@@ -205,7 +207,12 @@ export default function ConstellationPath({
 
         {/* Star nodes */}
         {nodes.map((node) => (
-          <g key={node.day.id}>
+          <g
+            key={node.day.id}
+            className={onDayClick ? "constellation-star-clickable" : ""}
+            style={onDayClick ? { cursor: "pointer", transformOrigin: `${node.cx}px ${node.cy}px` } : undefined}
+            onClick={onDayClick ? (e) => { e.stopPropagation(); onDayClick(node.day.id); } : undefined}
+          >
             {/* Activity density glow */}
             {node.actCount > 0 && (
               <circle

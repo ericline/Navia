@@ -16,7 +16,10 @@ interface FormState {
   name: string;
   category: string;
   address: string;
+  lat: number | null;
+  lng: number | null;
   dayId: string;
+  time: string;
   duration: string;
   cost: string;
   energy: string;
@@ -27,7 +30,10 @@ const EMPTY_FORM: FormState = {
   name: "",
   category: "",
   address: "",
+  lat: null,
+  lng: null,
   dayId: "",
+  time: "",
   duration: "",
   cost: "",
   energy: "",
@@ -74,7 +80,12 @@ export default function AddActivityPanel({
         name: editingActivity.name,
         category: editingActivity.category || "",
         address: editingActivity.address || "",
+        lat: editingActivity.lat ?? null,
+        lng: editingActivity.lng ?? null,
         dayId: editingActivity.day_id != null ? String(editingActivity.day_id) : "",
+        time: editingActivity.start_time
+          ? editingActivity.start_time.slice(0, 5)
+          : "",
         duration:
           editingActivity.est_duration_minutes != null
             ? String(editingActivity.est_duration_minutes)
@@ -111,6 +122,7 @@ export default function AddActivityPanel({
         ? null
         : Number(form.cost);
     const dayIdValue = form.dayId === "" ? null : parseInt(form.dayId, 10);
+    const startTime = form.time ? `${form.time}:00` : null;
 
     try {
       setSaving(true);
@@ -119,12 +131,15 @@ export default function AddActivityPanel({
           name: form.name.trim(),
           category: form.category || undefined,
           address: form.address || undefined,
+          lat: form.lat,
+          lng: form.lng,
           day_id: dayIdValue,
           unschedule: dayIdValue === null && editingActivity.day_id != null,
           est_duration_minutes: parsedDuration,
           cost_estimate: parsedCost,
           energy_level: form.energy || undefined,
           must_do: form.mustDo,
+          start_time: startTime,
         });
       } else {
         await onCreate({
@@ -133,10 +148,13 @@ export default function AddActivityPanel({
           name: form.name.trim(),
           category: form.category || undefined,
           address: form.address || undefined,
+          lat: form.lat,
+          lng: form.lng,
           est_duration_minutes: parsedDuration,
           cost_estimate: parsedCost,
           energy_level: form.energy || undefined,
           must_do: form.mustDo,
+          start_time: startTime,
         });
       }
       setForm(EMPTY_FORM);
@@ -167,6 +185,13 @@ export default function AddActivityPanel({
           days={days}
           form={form}
           updateField={updateField}
+          onCoordinates={(coords) => {
+            updateField("lng", coords[0]);
+            updateField("lat", coords[1]);
+          }}
+          onCategory={(cat) => {
+            if (!form.category) updateField("category", cat);
+          }}
         />
       </div>
 
@@ -180,6 +205,13 @@ export default function AddActivityPanel({
           days={days}
           form={form}
           updateField={updateField}
+          onCoordinates={(coords) => {
+            updateField("lng", coords[0]);
+            updateField("lat", coords[1]);
+          }}
+          onCategory={(cat) => {
+            if (!form.category) updateField("category", cat);
+          }}
         />
       </div>
     </div>
@@ -196,6 +228,8 @@ interface PanelContentProps {
   days: Day[];
   form: FormState;
   updateField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+  onCoordinates: (coords: [number, number]) => void;
+  onCategory: (category: string) => void;
 }
 
 function PanelContent({
@@ -206,6 +240,8 @@ function PanelContent({
   days,
   form,
   updateField,
+  onCoordinates,
+  onCategory,
 }: PanelContentProps) {
   return (
     <div className="p-6 space-y-5">
@@ -243,23 +279,25 @@ function PanelContent({
         </div>
 
         <div>
+          <label className={labelClass}>Address</label>
+          <LocationAutocomplete
+            value={form.address}
+            onChange={(val) => updateField("address", val)}
+            onCoordinates={onCoordinates}
+            onCategory={onCategory}
+            placeholder="Search a place, restaurant, landmark..."
+            className={inputClass}
+            types={ADDRESS_TYPES}
+          />
+        </div>
+
+        <div>
           <label className={labelClass}>Category</label>
           <input
             className={inputClass}
             value={form.category}
             onChange={(e) => updateField("category", e.target.value)}
-            placeholder="food, museum, hike..."
-          />
-        </div>
-
-        <div>
-          <label className={labelClass}>Address</label>
-          <LocationAutocomplete
-            value={form.address}
-            onChange={(val) => updateField("address", val)}
-            placeholder="City or specific address"
-            className={inputClass}
-            types={ADDRESS_TYPES}
+            placeholder="Auto-filled from address, or type manually"
           />
         </div>
 
@@ -279,6 +317,16 @@ function PanelContent({
               </option>
             ))}
           </select>
+        </div>
+
+        <div>
+          <label className={labelClass}>Start time</label>
+          <input
+            type="time"
+            className={inputClass}
+            value={form.time}
+            onChange={(e) => updateField("time", e.target.value)}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">

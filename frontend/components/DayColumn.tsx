@@ -2,7 +2,7 @@
 
 import { Day, Activity } from "@/lib/api";
 import { getCategoryKey, CATEGORY_NEBULA_COLORS, type CategoryKey } from "@/lib/utils";
-import { Plus, Clock, DollarSign, Hash } from "lucide-react";
+import { Plus, Clock, DollarSign, Hash, MapPin } from "lucide-react";
 import ActivityCard from "./ActivityCard";
 
 interface DayColumnProps {
@@ -12,14 +12,16 @@ interface DayColumnProps {
   onAddActivity: (dayId: number) => void;
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (activityId: number) => void;
+  onViewMap?: (dayId: number) => void;
 }
 
 function getNebulaColor(activities: Activity[]): string {
   if (activities.length === 0) return CATEGORY_NEBULA_COLORS.other;
 
-  const counts: Record<CategoryKey, number> = { food: 0, museum: 0, hike: 0, transport: 0, hotel: 0, other: 0 };
+  const counts: Partial<Record<CategoryKey, number>> = {};
   for (const a of activities) {
-    counts[getCategoryKey(a.category)]++;
+    const key = getCategoryKey(a.category);
+    counts[key] = (counts[key] ?? 0) + 1;
   }
 
   const dominant = (Object.entries(counts) as [CategoryKey, number][])
@@ -44,6 +46,7 @@ export default function DayColumn({
   onAddActivity,
   onEditActivity,
   onDeleteActivity,
+  onViewMap,
 }: DayColumnProps) {
   const nebulaColor = getNebulaColor(activities);
   const totalMinutes = activities.reduce(
@@ -111,6 +114,14 @@ export default function DayColumn({
                   <Hash className="h-2 w-2" />
                   {activities.length}
                 </span>
+                {onViewMap && (
+                  <button
+                    onClick={() => onViewMap(day.id)}
+                    className="inline-flex items-center gap-0.5 text-[9px] text-blue/50 hover:text-blue bg-blue/5 hover:bg-blue/10 rounded-full px-1.5 py-0.5 transition"
+                  >
+                    <MapPin className="h-2 w-2" />
+                  </button>
+                )}
               </>
             ) : (
               <button

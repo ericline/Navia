@@ -25,6 +25,8 @@ interface TripConstellationProps {
   destination?: string;
   /** Called once when reveal animation completes */
   onRevealComplete?: () => void;
+  /** Called when a day star is clicked */
+  onDayClick?: (dayId: number) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -86,6 +88,7 @@ export default function TripConstellation({
   size = "default",
   destination,
   onRevealComplete,
+  onDayClick,
 }: TripConstellationProps) {
   const compact = size === "compact";
   const cfg = SIZE_CONFIG[size];
@@ -163,12 +166,13 @@ export default function TripConstellation({
   const minY = Math.min(...nodes.map((n) => n.cy));
 
   return (
-    <div className="w-full overflow-hidden">
+    <div className="w-full">
       <svg
-        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+        viewBox={`-20 -20 ${svgWidth + 40} ${svgHeight + 40}`}
         className="w-full"
-        style={size === "reveal" ? undefined : { height: `${svgHeight}px`, minHeight: `${svgHeight}px` }}
+        style={size === "reveal" ? undefined : { height: `${svgHeight + 40}px`, minHeight: `${svgHeight + 40}px` }}
         fill="none"
+        overflow="visible"
         preserveAspectRatio="xMidYMid meet"
       >
         {/* Faint background stars */}
@@ -261,7 +265,9 @@ export default function TripConstellation({
           return (
             <g
               key={node.day.id}
-              className={revealAnimation ? "constellation-reveal-star" : ""}
+              className={`${revealAnimation ? "constellation-reveal-star" : ""} ${onDayClick ? "constellation-star-clickable" : ""}`}
+              style={onDayClick ? { cursor: "pointer", transformOrigin: `${node.cx}px ${node.cy}px` } : undefined}
+              onClick={onDayClick ? (e) => { e.stopPropagation(); onDayClick(node.day.id); } : undefined}
             >
               {/* Activity density glow */}
               {node.actCount > 0 && (

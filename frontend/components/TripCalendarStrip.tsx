@@ -15,6 +15,7 @@ interface TripCalendarStripProps {
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (activityId: number) => void;
   tripName?: string;
+  onViewDayMap?: (dayId: number) => void;
 }
 
 const MAX_VISIBLE = 7;
@@ -28,6 +29,7 @@ export default function TripCalendarStrip({
   onEditActivity,
   onDeleteActivity,
   tripName,
+  onViewDayMap,
 }: TripCalendarStripProps) {
   const totalDays = days.length;
   const visibleCount = Math.min(MAX_VISIBLE, totalDays - weekOffset);
@@ -80,6 +82,7 @@ export default function TripCalendarStrip({
         weekOffset={weekOffset}
         visibleCount={visibleCount}
         tripName={tripName}
+        onDayClick={onViewDayMap}
       />
 
       {/* Day columns grid */}
@@ -93,6 +96,7 @@ export default function TripCalendarStrip({
               onAddActivity={onAddActivity}
               onEditActivity={onEditActivity}
               onDeleteActivity={onDeleteActivity}
+              onViewMap={onViewDayMap}
             />
           </div>
         ))}

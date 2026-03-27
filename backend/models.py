@@ -4,6 +4,7 @@ from sqlalchemy import (
     Integer,
     String,
     Date,
+    Time,
     ForeignKey,
     Boolean,
     Float,
@@ -117,6 +118,7 @@ class Activity(Base):
     cost_estimate = Column(Float, nullable=True)
     energy_level = Column(String, nullable=True)
     must_do = Column(Boolean, default=False)
+    start_time = Column(Time, nullable=True)
 
     # Relationships
     trip = relationship("Trip", back_populates="activities")
