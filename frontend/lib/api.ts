@@ -19,6 +19,9 @@ export interface Trip {
   start_date: string; // ISO date
   end_date: string;
   timezone: string;
+  owner_id: number | null;
+  owner_name?: string | null;
+  owner_email?: string | null;
 }
 
 export interface TripCreate {
@@ -61,6 +64,8 @@ export interface Activity {
   energy_level?: string | null;
   must_do: boolean;
   start_time?: string | null;
+  notes?: string | null;
+  position: number;
 }
 
 export interface ActivityCreate {
@@ -79,6 +84,7 @@ export interface ActivityCreate {
   energy_level?: string | null;
   must_do?: boolean;
   start_time?: string | null;
+  notes?: string | null;
 }
 
 export interface ActivityUpdate {
@@ -93,23 +99,50 @@ export interface ActivityUpdate {
   energy_level?: string | null;
   must_do?: boolean;
   start_time?: string | null;
+  notes?: string | null;
   unschedule?: boolean;
 }
 
 // ---------- User API ----------
 
-export interface UserUpdate {
-  name?: string;
-  email?: string;
-  birthday?: string | null;
+export interface UserPreferences {
+  max_walking_km: number;
+  max_activity_budget: number;
+  likes: string[];
+  dislikes: string[];
+  pace: "relaxed" | "balanced" | "packed";
+  day_start: string; // "HH:MM:SS"
+  day_end: string;
+  dietary: string[];
 }
 
-export async function updateUser(data: UserUpdate): Promise<{
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  max_walking_km: 2.0,
+  max_activity_budget: 100.0,
+  likes: [],
+  dislikes: [],
+  pace: "balanced",
+  day_start: "09:00:00",
+  day_end: "21:00:00",
+  dietary: [],
+};
+
+export interface UserOut {
   id: number;
   name: string;
   email: string;
   birthday: string | null;
-}> {
+  preferences: UserPreferences;
+}
+
+export interface UserUpdate {
+  name?: string;
+  email?: string;
+  birthday?: string | null;
+  preferences?: UserPreferences;
+}
+
+export async function updateUser(data: UserUpdate): Promise<UserOut> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -189,8 +222,18 @@ export async function createTrip(data: TripCreate): Promise<Trip> {
   });
 
   if (!res.ok) {
-    console.error("createTrip failed", res.status, await res.text());
-    throw new Error("Failed to create trip");
+    let msg = "Failed to create trip";
+    try {
+      const body = await res.json();
+      if (Array.isArray(body.detail) && body.detail[0]?.msg) {
+        msg = body.detail[0].msg.replace(/^Value error,\s*/, "");
+      } else if (typeof body.detail === "string") {
+        msg = body.detail;
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
   }
   return res.json();
 }
@@ -306,6 +349,96 @@ export async function deleteActivity(id: number): Promise<void> {
   if (!res.ok) {
     console.error("deleteActivity failed", res.status, await res.text());
     throw new Error("Failed to delete activity");
+  }
+}
+
+export async function reorderActivities(
+  orders: { activity_id: number; position: number }[]
+): Promise<Activity[]> {
+  const res = await fetch(`${API_BASE_URL}/activities/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ orders }),
+  });
+  if (!res.ok) {
+    console.error("reorderActivities failed", res.status, await res.text());
+    throw new Error("Failed to reorder activities");
+  }
+  return res.json();
+}
+
+// ---------- AI / Recommendations API ----------
+
+export interface RecommendedActivity {
+  name: string;
+  category?: string;
+  address?: string;
+  est_duration_minutes?: number;
+  cost_estimate?: number;
+  energy_level?: "low" | "medium" | "high";
+  must_do?: boolean;
+  notes?: string;
+}
+
+export interface RecommendationResponse {
+  enabled: boolean;
+  recommendations: RecommendedActivity[];
+}
+
+export async function fetchRecommendations(
+  tripId: number
+): Promise<RecommendationResponse> {
+  const res = await fetch(`${API_BASE_URL}/ai/trips/${tripId}/recommend`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    throw new Error("Failed to fetch recommendations");
+  }
+  return res.json();
+}
+
+export interface ArrangementAssignment {
+  activity_id: number;
+  day_id: number;
+  position: number;
+  start_time?: string | null;
+}
+
+export interface Arrangement {
+  name: string;
+  description: string;
+  assignments: ArrangementAssignment[];
+}
+
+export async function generateArrangements(
+  tripId: number
+): Promise<Arrangement[]> {
+  const res = await fetch(`${API_BASE_URL}/ai/trips/${tripId}/arrange`, {
+    method: "POST",
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Failed to generate arrangements" }));
+    throw new Error(body.detail ?? "Failed to generate arrangements");
+  }
+  return res.json();
+}
+
+export async function applyArrangement(
+  tripId: number,
+  assignments: ArrangementAssignment[]
+): Promise<void> {
+  const res = await fetch(
+    `${API_BASE_URL}/ai/trips/${tripId}/apply-arrangement`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ assignments }),
+    }
+  );
+  if (!res.ok) {
+    throw new Error("Failed to apply arrangement");
   }
 }
 

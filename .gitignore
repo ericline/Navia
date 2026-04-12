@@ -18,6 +18,7 @@ Thumbs.db
 # Other
 .env
 .env.*
+*.db
 
 # Obsidian vault & Claude instructions
 Navia Vault/

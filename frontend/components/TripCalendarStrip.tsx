@@ -5,6 +5,7 @@ import { getTodayStr } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ConstellationPath from "./ConstellationPath";
 import DayColumn from "./DayColumn";
+import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
 
 interface TripCalendarStripProps {
   days: Day[];
@@ -16,6 +17,7 @@ interface TripCalendarStripProps {
   onDeleteActivity: (activityId: number) => void;
   tripName?: string;
   onViewDayMap?: (dayId: number) => void;
+  onReorderActivities?: (dayId: number, orderedIds: number[]) => void;
 }
 
 const MAX_VISIBLE = 7;
@@ -30,6 +32,7 @@ export default function TripCalendarStrip({
   onDeleteActivity,
   tripName,
   onViewDayMap,
+  onReorderActivities,
 }: TripCalendarStripProps) {
   const totalDays = days.length;
   const visibleCount = Math.min(MAX_VISIBLE, totalDays - weekOffset);
@@ -39,6 +42,26 @@ export default function TripCalendarStrip({
   const todayStr = getTodayStr();
 
   const visibleDays = days.slice(weekOffset, weekOffset + visibleCount);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onReorderActivities) return;
+
+    // Find which day both activities belong to
+    for (const day of days) {
+      const dayActivities = activitiesByDay[day.id] ?? [];
+      const ids = dayActivities.map((a) => a.id);
+      const oldIndex = ids.indexOf(Number(active.id));
+      const newIndex = ids.indexOf(Number(over.id));
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = [...ids];
+        reordered.splice(oldIndex, 1);
+        reordered.splice(newIndex, 0, Number(active.id));
+        onReorderActivities(day.id, reordered);
+        break;
+      }
+    }
+  }
 
   return (
     <section className="glass bg-warmSurface rounded-2xl p-4 sm:p-6 space-y-3">
@@ -86,21 +109,23 @@ export default function TripCalendarStrip({
       />
 
       {/* Day columns grid */}
-      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-thin">
-        {visibleDays.map((day) => (
-          <div key={day.id} className="flex-1 min-w-[160px] sm:min-w-[180px]">
-            <DayColumn
-              day={day}
-              activities={activitiesByDay[day.id] ?? []}
-              isToday={day.date === todayStr}
-              onAddActivity={onAddActivity}
-              onEditActivity={onEditActivity}
-              onDeleteActivity={onDeleteActivity}
-              onViewMap={onViewDayMap}
-            />
-          </div>
-        ))}
-      </div>
+      <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-thin">
+          {visibleDays.map((day) => (
+            <div key={day.id} className="flex-1 min-w-[160px] sm:min-w-[180px]">
+              <DayColumn
+                day={day}
+                activities={activitiesByDay[day.id] ?? []}
+                isToday={day.date === todayStr}
+                onAddActivity={onAddActivity}
+                onEditActivity={onEditActivity}
+                onDeleteActivity={onDeleteActivity}
+                onViewMap={onViewDayMap}
+              />
+            </div>
+          ))}
+        </div>
+      </DndContext>
     </section>
   );
 }

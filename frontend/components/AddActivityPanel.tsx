@@ -24,6 +24,7 @@ interface FormState {
   cost: string;
   energy: string;
   mustDo: boolean;
+  notes: string;
 }
 
 const EMPTY_FORM: FormState = {
@@ -38,6 +39,7 @@ const EMPTY_FORM: FormState = {
   cost: "",
   energy: "",
   mustDo: false,
+  notes: "",
 };
 
 interface AddActivityPanelProps {
@@ -96,6 +98,7 @@ export default function AddActivityPanel({
             : "",
         energy: editingActivity.energy_level || "",
         mustDo: editingActivity.must_do,
+        notes: editingActivity.notes || "",
       });
     } else {
       setForm({
@@ -140,6 +143,7 @@ export default function AddActivityPanel({
           energy_level: form.energy || undefined,
           must_do: form.mustDo,
           start_time: startTime,
+          notes: form.notes || undefined,
         });
       } else {
         await onCreate({
@@ -155,6 +159,7 @@ export default function AddActivityPanel({
           energy_level: form.energy || undefined,
           must_do: form.mustDo,
           start_time: startTime,
+          notes: form.notes || undefined,
         });
       }
       setForm(EMPTY_FORM);
@@ -368,6 +373,17 @@ function PanelContent({
             <option value="medium">Medium</option>
             <option value="high">High (strenuous)</option>
           </select>
+        </div>
+
+        <div>
+          <label className={labelClass}>Notes</label>
+          <textarea
+            className={inputClass + " min-h-[60px] resize-y"}
+            value={form.notes}
+            onChange={(e) => updateField("notes", e.target.value)}
+            placeholder="Add any notes or details..."
+            rows={3}
+          />
         </div>
 
         <div className="flex items-center gap-2.5">

@@ -14,6 +14,14 @@ router = APIRouter(
 )
 
 
+def _trip_with_owner(trip) -> dict:
+    """Enrich a Trip ORM object with owner_name and owner_email."""
+    d = {c.name: getattr(trip, c.name) for c in trip.__table__.columns}
+    d["owner_name"] = trip.owner.name if trip.owner else None
+    d["owner_email"] = trip.owner.email if trip.owner else None
+    return d
+
+
 @router.get("/", response_model=List[schemas.Trip])
 def read_trips(
     skip: int = 0,
@@ -21,7 +29,8 @@ def read_trips(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return crud.get_trips_for_user(db, current_user.id, skip=skip, limit=limit)
+    trips = crud.get_trips_for_user(db, current_user.id, skip=skip, limit=limit)
+    return [_trip_with_owner(t) for t in trips]
 
 
 @router.get("/detailed", response_model=List[schemas.TripDetailed])
@@ -32,7 +41,14 @@ def read_trips_detailed(
     current_user: models.User = Depends(get_current_user),
 ):
     """Return all trips with nested days and activities in a single response."""
-    return crud.get_trips_detailed_for_user(db, current_user.id, skip=skip, limit=limit)
+    trips = crud.get_trips_detailed_for_user(db, current_user.id, skip=skip, limit=limit)
+    result = []
+    for t in trips:
+        d = _trip_with_owner(t)
+        d["days"] = t.days
+        d["activities"] = t.activities
+        result.append(d)
+    return result
 
 
 @router.get("/{trip_id}", response_model=schemas.Trip)
@@ -41,7 +57,8 @@ def read_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return verify_trip_access(db, trip_id, current_user)
+    trip = verify_trip_access(db, trip_id, current_user)
+    return _trip_with_owner(trip)
 
 
 @router.get("/{trip_id}/constellation", response_model=schemas.TripPublic)
@@ -70,7 +87,8 @@ def create_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    return crud.create_trip(db=db, trip=trip, owner_id=current_user.id)
+    new_trip = crud.create_trip(db=db, trip=trip, owner_id=current_user.id)
+    return _trip_with_owner(new_trip)
 
 
 @router.post("/{trip_id}/generate-days", response_model=List[schemas.Day])

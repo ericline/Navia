@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Activity, Day } from "@/lib/api";
-import { ChevronUp, Star, CalendarPlus } from "lucide-react";
+import { ChevronUp, Star, CalendarPlus, Sparkles } from "lucide-react";
 import ActivityCard from "./ActivityCard";
 
 interface UnscheduledDockProps {
@@ -11,6 +11,7 @@ interface UnscheduledDockProps {
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (activityId: number) => void;
   onScheduleActivity: (activityId: number, dayId: number) => void;
+  onAutoArrange?: () => void;
 }
 
 export default function UnscheduledDock({
@@ -19,6 +20,7 @@ export default function UnscheduledDock({
   onEditActivity,
   onDeleteActivity,
   onScheduleActivity,
+  onAutoArrange,
 }: UnscheduledDockProps) {
   const [expanded, setExpanded] = useState(false);
   const [schedulingId, setSchedulingId] = useState<number | null>(null);
@@ -57,6 +59,17 @@ export default function UnscheduledDock({
       {/* Expanded tray */}
       {expanded && (
         <div className="bg-darkBlue/95 backdrop-blur-sm border-t border-white/10 px-6 py-4 max-h-[40vh] overflow-y-auto scrollbar-thin slide-in-up">
+          {onAutoArrange && count >= 2 && (
+            <div className="mx-auto max-w-5xl mb-3 flex justify-end">
+              <button
+                onClick={onAutoArrange}
+                className="flex items-center gap-1.5 text-xs font-medium text-white/80 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-1.5 transition"
+              >
+                <Sparkles className="h-3 w-3" />
+                Auto-arrange
+              </button>
+            </div>
+          )}
           <div className="mx-auto max-w-5xl grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {activities.map((act) => (
               <div key={act.id} className="relative dock-card">

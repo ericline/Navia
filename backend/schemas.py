@@ -1,8 +1,21 @@
 # backend/schemas.py
 from datetime import date, time
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+
+
+# ---------- User Preferences ----------
+
+class UserPreferences(BaseModel):
+    max_walking_km: float = 2.0
+    max_activity_budget: float = 100.0
+    likes: list[str] = []
+    dislikes: list[str] = []
+    pace: Literal["relaxed", "balanced", "packed"] = "balanced"
+    day_start: time = time(9, 0)
+    day_end: time = time(21, 0)
+    dietary: list[str] = []
 
 
 # ---------- User / Auth Schemas ----------
@@ -24,6 +37,7 @@ class UserOut(BaseModel):
     name: str
     email: str
     birthday: Optional[date] = None
+    preferences: UserPreferences = UserPreferences()
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,6 +46,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     email: Optional[EmailStr] = None
     birthday: Optional[date] = None
+    preferences: Optional[UserPreferences] = None
 
 
 class Token(BaseModel):
@@ -62,6 +77,9 @@ class TripCreate(TripBase):
 
 class Trip(TripBase):
     id: int
+    owner_id: int | None = None
+    owner_name: str | None = None
+    owner_email: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -103,6 +121,8 @@ class ActivityBase(BaseModel):
     energy_level: Optional[str] = Field(None, max_length=50)
     must_do: bool = False
     start_time: Optional[time] = None
+    notes: Optional[str] = Field(None, max_length=5000)
+    position: int = 0
 
 
 class ActivityCreate(ActivityBase):
@@ -121,6 +141,8 @@ class ActivityUpdate(BaseModel):
     energy_level: Optional[str] = Field(None, max_length=50)
     must_do: Optional[bool] = None
     start_time: Optional[time] = None
+    notes: Optional[str] = Field(None, max_length=5000)
+    position: Optional[int] = None
     # sentinel to allow explicitly setting day_id to null (unschedule)
     unschedule: bool = False
 
@@ -129,6 +151,17 @@ class Activity(ActivityBase):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ---------- Reorder Schema ----------
+
+class ActivityReorder(BaseModel):
+    activity_id: int
+    position: int
+
+
+class ActivityReorderRequest(BaseModel):
+    orders: list[ActivityReorder]
 
 
 # ---------- Collaborator Schemas ----------
@@ -153,6 +186,9 @@ class TripDetailed(BaseModel):
     start_date: date
     end_date: date
     timezone: str
+    owner_id: int | None = None
+    owner_name: str | None = None
+    owner_email: str | None = None
     days: list[Day]
     activities: list[Activity]
 

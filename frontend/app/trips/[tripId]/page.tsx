@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Trip,
   Day,
@@ -16,6 +16,7 @@ import {
   updateActivity,
   deleteActivity,
   deleteTrip,
+  reorderActivities,
 } from "@/lib/api";
 import { Plus, Share2 } from "lucide-react";
 import TripHeader from "@/components/TripHeader";
@@ -24,11 +25,14 @@ import UnscheduledDock from "@/components/UnscheduledDock";
 import AddActivityPanel from "@/components/AddActivityPanel";
 import TripConstellation from "@/components/TripConstellation";
 import CollaboratorPanel from "@/components/CollaboratorPanel";
+import RecommendationModal from "@/components/RecommendationModal";
+import ArrangementBrowser from "@/components/ArrangementBrowser";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const tripIdParam = params?.tripId;
   const tripId = Array.isArray(tripIdParam)
@@ -57,6 +61,26 @@ export default function TripDetailPage() {
   // Collaborator panel
   const [collabOpen, setCollabOpen] = useState(false);
   const { user } = useAuth();
+
+  // AI recommendation modal (opened via ?recommend=1)
+  const [recommendOpen, setRecommendOpen] = useState(false);
+  // AI arrangement browser (opened from UnscheduledDock)
+  const [arrangeOpen, setArrangeOpen] = useState(false);
+
+  // Open the recommendation modal when ?recommend=1 is present
+  useEffect(() => {
+    if (searchParams?.get("recommend") === "1") {
+      setRecommendOpen(true);
+    }
+  }, [searchParams]);
+
+  function closeRecommendations() {
+    setRecommendOpen(false);
+    // Strip the query param so refresh doesn't re-open the modal
+    if (searchParams?.get("recommend") === "1") {
+      router.replace(`/trips/${tripId}`);
+    }
+  }
 
   // Guard against React Strict Mode double-firing the generate call
   const generatingRef = useRef(false);
@@ -120,14 +144,9 @@ export default function TripDetailPage() {
       (activitiesByDay[activity.day_id] ??= []).push(activity);
     }
   }
-  // Sort each day's activities by start_time (nulls at end)
+  // Sort each day's activities by position
   for (const dayId of Object.keys(activitiesByDay)) {
-    activitiesByDay[Number(dayId)].sort((a, b) => {
-      if (!a.start_time && !b.start_time) return 0;
-      if (!a.start_time) return 1;
-      if (!b.start_time) return -1;
-      return a.start_time.localeCompare(b.start_time);
-    });
+    activitiesByDay[Number(dayId)].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   }
 
   // Refresh activities from server
@@ -262,6 +281,25 @@ export default function TripDetailPage() {
     }
   }
 
+  async function handleReorderActivities(_dayId: number, orderedIds: number[]) {
+    // Optimistic local update
+    setActivities((prev) => {
+      const updated = [...prev];
+      orderedIds.forEach((id, index) => {
+        const act = updated.find((a) => a.id === id);
+        if (act) act.position = index;
+      });
+      return updated;
+    });
+    try {
+      const orders = orderedIds.map((id, index) => ({ activity_id: id, position: index }));
+      await reorderActivities(orders);
+    } catch (err) {
+      console.error(err);
+      await refreshActivities();
+    }
+  }
+
   async function handleCreateActivity(data: ActivityCreate) {
     try {
       await createActivity(data);
@@ -329,6 +367,7 @@ export default function TripDetailPage() {
           onDeleteActivity={handleDeleteActivity}
           tripName={trip.name}
           onViewDayMap={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
+          onReorderActivities={handleReorderActivities}
         />
       ) : (
         <section className="glass bg-warmSurface rounded-2xl p-8 text-center">
@@ -353,6 +392,31 @@ export default function TripDetailPage() {
         onEditActivity={handleEditActivity}
         onDeleteActivity={handleDeleteActivity}
         onScheduleActivity={handleScheduleActivity}
+        onAutoArrange={() => setArrangeOpen(true)}
+      />
+
+      {/* AI recommendation modal */}
+      <RecommendationModal
+        open={recommendOpen}
+        tripId={tripId}
+        onClose={closeRecommendations}
+        onAdded={async () => {
+          const fresh = await fetchActivitiesForTrip(tripId);
+          setActivities(fresh);
+        }}
+      />
+
+      {/* AI arrangement browser */}
+      <ArrangementBrowser
+        open={arrangeOpen}
+        tripId={tripId}
+        days={sortedDays}
+        activities={activities}
+        onClose={() => setArrangeOpen(false)}
+        onApplied={async () => {
+          const fresh = await fetchActivitiesForTrip(tripId);
+          setActivities(fresh);
+        }}
       />
 
       {/* Add / Edit activity panel */}
@@ -375,9 +439,9 @@ export default function TripDetailPage() {
         open={collabOpen}
         onClose={() => setCollabOpen(false)}
         tripId={tripId}
-        isOwner={!!user && !!trip}
-        ownerName={user?.name ?? ""}
-        ownerEmail={user?.email ?? ""}
+        isOwner={!!user && user.id === trip?.owner_id}
+        ownerName={trip?.owner_name ?? ""}
+        ownerEmail={trip?.owner_email ?? ""}
       />
 
       {/* Constellation reveal overlay */}

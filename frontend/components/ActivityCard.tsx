@@ -86,6 +86,12 @@ export default function ActivityCard({
           </p>
         )}
 
+        {activity.notes && (
+          <p className="text-[10px] text-black/40 mt-0.5 line-clamp-2">
+            {activity.notes}
+          </p>
+        )}
+
         {/* Badges */}
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
           {activity.est_duration_minutes != null && (

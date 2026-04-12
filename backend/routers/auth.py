@@ -25,7 +25,7 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     return schemas.Token(
         access_token=token,
         token_type="bearer",
-        user=schemas.UserOut.model_validate(user),
+        user=crud.user_to_out(user),
     )
 
 
@@ -41,13 +41,13 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     return schemas.Token(
         access_token=token,
         token_type="bearer",
-        user=schemas.UserOut.model_validate(user),
+        user=crud.user_to_out(user),
     )
 
 
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user: models.User = Depends(get_current_user)):
-    return current_user
+    return crud.user_to_out(current_user)
 
 
 @router.patch("/me", response_model=schemas.UserOut)
@@ -64,4 +64,4 @@ def update_me(
                 detail="An account with that email already exists",
             )
     user = crud.update_user(db, current_user.id, update)
-    return user
+    return crud.user_to_out(user)

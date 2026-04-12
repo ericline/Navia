@@ -9,6 +9,7 @@ interface DatePickerProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  minDate?: string; // ISO "YYYY-MM-DD" — days before this are disabled
 }
 
 const MONTHS = [
@@ -31,6 +32,7 @@ export default function DatePicker({
   onChange,
   placeholder = "Select date",
   className = "",
+  minDate,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -118,6 +120,7 @@ export default function DatePicker({
       String(viewMonth + 1).padStart(2, "0"),
       String(day).padStart(2, "0"),
     ].join("-");
+    if (minDate && iso < minDate) return;
     onChange(iso);
     setOpen(false);
   }
@@ -183,14 +186,18 @@ export default function DatePicker({
                 ].join("-");
                 const isSelected = iso === value;
                 const isToday = iso === todayStr;
+                const isDisabled = !!minDate && iso < minDate;
                 return (
                   <button
                     key={iso}
                     type="button"
+                    disabled={isDisabled}
                     onClick={() => selectDay(day)}
                     className={[
                       "mx-auto flex h-8 w-8 items-center justify-center rounded-full text-sm transition select-none",
-                      isSelected
+                      isDisabled
+                        ? "text-black/20 cursor-not-allowed"
+                        : isSelected
                         ? "bg-blue text-white font-semibold shadow-sm"
                         : isToday
                         ? "border border-blue/35 text-blue/80 font-medium hover:bg-blue/10"

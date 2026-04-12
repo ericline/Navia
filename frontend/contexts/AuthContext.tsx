@@ -8,7 +8,12 @@ import {
   ReactNode,
 } from "react";
 
-import { API_BASE_URL, updateUser as apiUpdateUser, UserUpdate } from "@/lib/api";
+import {
+  API_BASE_URL,
+  updateUser as apiUpdateUser,
+  UserUpdate,
+  UserPreferences,
+} from "@/lib/api";
 
 const API = API_BASE_URL;
 
@@ -17,6 +22,7 @@ export interface AuthUser {
   name: string;
   email: string;
   birthday: string | null;
+  preferences: UserPreferences;
 }
 
 interface AuthContextType {

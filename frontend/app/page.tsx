@@ -231,9 +231,21 @@ function HeroWidget() {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Clear the error whenever the dates change
+  useEffect(() => {
+    setFormError(null);
+  }, [start, end]);
 
   async function handleStartPlanning() {
     if (!tripName.trim() || !dest.trim() || !start || !end) return;
+
+    // Client-side date validation
+    if (new Date(end) < new Date(start)) {
+      setFormError("End date must be on or after the start date.");
+      return;
+    }
 
     if (!user) {
       // Save form state for after login
@@ -247,6 +259,7 @@ function HeroWidget() {
 
     try {
       setCreating(true);
+      setFormError(null);
       const trip = await createTrip({
         name: tripName.trim(),
         destination: dest.trim(),
@@ -254,9 +267,9 @@ function HeroWidget() {
         end_date: end,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
-      router.push(`/trips/${trip.id}`);
+      router.push(`/trips/${trip.id}?recommend=1`);
     } catch (err) {
-      console.error(err);
+      setFormError(err instanceof Error ? err.message : "Failed to create trip.");
     } finally {
       setCreating(false);
     }
@@ -326,6 +339,7 @@ function HeroWidget() {
                 value={end}
                 onChange={setEnd}
                 placeholder="End date"
+                minDate={start || undefined}
                 className="flex-1 sm:w-36 w-full rounded-xl px-3 py-3"
               />
             </div>
@@ -339,6 +353,12 @@ function HeroWidget() {
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+
+          {formError && (
+            <p className="text-xs text-rose-600/90 pl-1" role="alert">
+              {formError}
+            </p>
+          )}
         </div>
 
         {!user && (

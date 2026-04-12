@@ -2,8 +2,10 @@
 
 import { Day, Activity } from "@/lib/api";
 import { getCategoryKey, CATEGORY_NEBULA_COLORS, type CategoryKey } from "@/lib/utils";
-import { Plus, Clock, DollarSign, Hash, MapPin } from "lucide-react";
+import { Plus, Clock, DollarSign, Hash, MapPin, GripVertical } from "lucide-react";
 import ActivityCard from "./ActivityCard";
+import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface DayColumnProps {
   day: Day;
@@ -37,6 +39,40 @@ function getDayLabel(date: string): string {
 function getShortDate(date: string): string {
   const d = new Date(date + "T00:00:00");
   return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric" });
+}
+
+function SortableActivityCard({
+  activity,
+  onEdit,
+  onDelete,
+}: {
+  activity: Activity;
+  onEdit: (a: Activity) => void;
+  onDelete: (id: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: activity.id,
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-start gap-0.5">
+      <button
+        {...attributes}
+        {...listeners}
+        className="mt-2.5 shrink-0 cursor-grab active:cursor-grabbing text-black/20 hover:text-black/40 touch-none"
+      >
+        <GripVertical className="h-3 w-3" />
+      </button>
+      <div className="flex-1 min-w-0">
+        <ActivityCard activity={activity} onEdit={onEdit} onDelete={onDelete} />
+      </div>
+    </div>
+  );
 }
 
 export default function DayColumn({
@@ -137,14 +173,16 @@ export default function DayColumn({
 
       {/* Activity cards */}
       <div className="flex-1 px-2 pb-2 space-y-1.5 overflow-y-auto scrollbar-thin max-h-[340px]">
-        {activities.map((act) => (
-          <ActivityCard
-            key={act.id}
-            activity={act}
-            onEdit={onEditActivity}
-            onDelete={onDeleteActivity}
-          />
-        ))}
+        <SortableContext items={activities.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+          {activities.map((act) => (
+            <SortableActivityCard
+              key={act.id}
+              activity={act}
+              onEdit={onEditActivity}
+              onDelete={onDeleteActivity}
+            />
+          ))}
+        </SortableContext>
 
         <button
           onClick={() => onAddActivity(day.id)}

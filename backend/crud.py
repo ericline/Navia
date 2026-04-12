@@ -1,5 +1,7 @@
 # backend/crud.py
+import json
 from datetime import timedelta
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 import models
@@ -37,9 +39,54 @@ def update_user(db: Session, user_id: int, update: schemas.UserUpdate) -> models
         db_user.email = update.email
     if "birthday" in provided:
         db_user.birthday = update.birthday
+    if "preferences" in provided and update.preferences is not None:
+        p = update.preferences
+        db_user.pref_max_walking_km = p.max_walking_km
+        db_user.pref_max_activity_budget = p.max_activity_budget
+        db_user.pref_likes = json.dumps(p.likes)
+        db_user.pref_dislikes = json.dumps(p.dislikes)
+        db_user.pref_pace = p.pace
+        db_user.pref_day_start = p.day_start
+        db_user.pref_day_end = p.day_end
+        db_user.pref_dietary = json.dumps(p.dietary)
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+def user_preferences_from_db(user: models.User) -> schemas.UserPreferences:
+    """Build a UserPreferences schema from the stored columns, applying defaults."""
+    defaults = schemas.UserPreferences()
+
+    def _decode_list(raw):
+        if not raw:
+            return []
+        try:
+            v = json.loads(raw)
+            return v if isinstance(v, list) else []
+        except (ValueError, TypeError):
+            return []
+
+    return schemas.UserPreferences(
+        max_walking_km=user.pref_max_walking_km if user.pref_max_walking_km is not None else defaults.max_walking_km,
+        max_activity_budget=user.pref_max_activity_budget if user.pref_max_activity_budget is not None else defaults.max_activity_budget,
+        likes=_decode_list(user.pref_likes),
+        dislikes=_decode_list(user.pref_dislikes),
+        pace=user.pref_pace or defaults.pace,
+        day_start=user.pref_day_start or defaults.day_start,
+        day_end=user.pref_day_end or defaults.day_end,
+        dietary=_decode_list(user.pref_dietary),
+    )
+
+
+def user_to_out(user: models.User) -> schemas.UserOut:
+    return schemas.UserOut(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        birthday=user.birthday,
+        preferences=user_preferences_from_db(user),
+    )
 
 
 # ---------- Trip CRUD ----------
@@ -167,11 +214,21 @@ def generate_days_for_trip(db: Session, trip: models.Trip):
 # ---------- Activity CRUD ----------
 
 def get_activities_for_trip(db: Session, trip_id: int):
-    return db.query(models.Activity).filter(models.Activity.trip_id == trip_id).all()
+    return (
+        db.query(models.Activity)
+        .filter(models.Activity.trip_id == trip_id)
+        .order_by(models.Activity.position)
+        .all()
+    )
 
 
 def get_activities_for_day(db: Session, day_id: int):
-    return db.query(models.Activity).filter(models.Activity.day_id == day_id).all()
+    return (
+        db.query(models.Activity)
+        .filter(models.Activity.day_id == day_id)
+        .order_by(models.Activity.position)
+        .all()
+    )
 
 
 def get_activity(db: Session, activity_id: int):
@@ -179,6 +236,11 @@ def get_activity(db: Session, activity_id: int):
 
 
 def create_activity(db: Session, activity: schemas.ActivityCreate):
+    max_pos = (
+        db.query(func.max(models.Activity.position))
+        .filter(models.Activity.trip_id == activity.trip_id)
+        .scalar()
+    ) or 0
     db_activity = models.Activity(
         trip_id=activity.trip_id,
         day_id=activity.day_id,
@@ -192,6 +254,8 @@ def create_activity(db: Session, activity: schemas.ActivityCreate):
         energy_level=activity.energy_level,
         must_do=activity.must_do,
         start_time=activity.start_time,
+        notes=activity.notes,
+        position=max_pos + 1,
     )
     db.add(db_activity)
     db.commit()
@@ -215,7 +279,7 @@ def update_activity(db: Session, activity_id: int, update: schemas.ActivityUpdat
     updatable_fields = [
         "name", "category", "address", "lat", "lng",
         "est_duration_minutes", "cost_estimate", "energy_level", "must_do",
-        "start_time",
+        "start_time", "notes", "position",
     ]
     for field in updatable_fields:
         if field in provided:

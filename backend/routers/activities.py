@@ -15,6 +15,27 @@ router = APIRouter(
 )
 
 
+@router.put("/reorder", response_model=List[schemas.Activity])
+def reorder_activities(
+    payload: schemas.ActivityReorderRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    if not payload.orders:
+        return []
+    trip_id = None
+    for item in payload.orders:
+        activity = crud.get_activity(db, item.activity_id)
+        if not activity:
+            raise HTTPException(status_code=404, detail=f"Activity {item.activity_id} not found")
+        if trip_id is None:
+            trip_id = activity.trip_id
+            verify_trip_access(db, trip_id, current_user)
+        activity.position = item.position
+    db.commit()
+    return crud.get_activities_for_trip(db, trip_id)
+
+
 @router.get("/trip/{trip_id}", response_model=List[schemas.Activity])
 def read_activities_for_trip(
     trip_id: int,

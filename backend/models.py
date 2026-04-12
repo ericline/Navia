@@ -24,6 +24,16 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     birthday = Column(Date, nullable=True)
 
+    # Preferences (all nullable — defaults applied on read)
+    pref_max_walking_km = Column(Float, nullable=True)
+    pref_max_activity_budget = Column(Float, nullable=True)
+    pref_likes = Column(String, nullable=True)         # JSON-encoded list
+    pref_dislikes = Column(String, nullable=True)      # JSON-encoded list
+    pref_pace = Column(String, nullable=True)          # "relaxed"|"balanced"|"packed"
+    pref_day_start = Column(Time, nullable=True)
+    pref_day_end = Column(Time, nullable=True)
+    pref_dietary = Column(String, nullable=True)       # JSON-encoded list
+
     owned_trips = relationship(
         "Trip",
         back_populates="owner",
@@ -119,6 +129,8 @@ class Activity(Base):
     energy_level = Column(String, nullable=True)
     must_do = Column(Boolean, default=False)
     start_time = Column(Time, nullable=True)
+    notes = Column(String, nullable=True)
+    position = Column(Integer, nullable=True, default=0)
 
     # Relationships
     trip = relationship("Trip", back_populates="activities")
