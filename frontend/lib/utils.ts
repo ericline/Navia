@@ -1,5 +1,11 @@
-import { Trip } from "@/lib/api";
+/**
+ * Shared utility functions for date formatting, trip filtering,
+ * category color mapping, constellation theming, and destination display.
+ */
 
+import { Trip } from "@/lib/types";
+
+/** Returns today's date as an ISO string (YYYY-MM-DD) in local time. */
 export function getTodayStr(): string {
   const d = new Date();
   return [
@@ -108,6 +114,7 @@ const US_COUNTRY_SUFFIXES = [
   ", US",
 ];
 
+/** Shortens US destinations by stripping country suffixes and abbreviating state names. */
 export function formatDestination(destination: string): string {
   let result = destination;
   for (const suffix of US_COUNTRY_SUFFIXES) {

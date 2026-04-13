@@ -1,4 +1,4 @@
-# backend/routers/trips.py
+"""Trip endpoints: CRUD, day generation, constellation (public), and collaborator management."""
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -14,14 +14,6 @@ router = APIRouter(
 )
 
 
-def _trip_with_owner(trip) -> dict:
-    """Enrich a Trip ORM object with owner_name and owner_email."""
-    d = {c.name: getattr(trip, c.name) for c in trip.__table__.columns}
-    d["owner_name"] = trip.owner.name if trip.owner else None
-    d["owner_email"] = trip.owner.email if trip.owner else None
-    return d
-
-
 @router.get("/", response_model=List[schemas.Trip])
 def read_trips(
     skip: int = 0,
@@ -29,8 +21,9 @@ def read_trips(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """List all trips owned by or shared with the authenticated user."""
     trips = crud.get_trips_for_user(db, current_user.id, skip=skip, limit=limit)
-    return [_trip_with_owner(t) for t in trips]
+    return [crud.trip_to_response(t) for t in trips]
 
 
 @router.get("/detailed", response_model=List[schemas.TripDetailed])
@@ -44,7 +37,7 @@ def read_trips_detailed(
     trips = crud.get_trips_detailed_for_user(db, current_user.id, skip=skip, limit=limit)
     result = []
     for t in trips:
-        d = _trip_with_owner(t)
+        d = crud.trip_to_response(t)
         d["days"] = t.days
         d["activities"] = t.activities
         result.append(d)
@@ -57,8 +50,9 @@ def read_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Fetch a single trip by ID (requires ownership or collaborator access)."""
     trip = verify_trip_access(db, trip_id, current_user)
-    return _trip_with_owner(trip)
+    return crud.trip_to_response(trip)
 
 
 @router.get("/{trip_id}/constellation", response_model=schemas.TripPublic)
@@ -87,8 +81,9 @@ def create_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Create a new trip owned by the authenticated user."""
     new_trip = crud.create_trip(db=db, trip=trip, owner_id=current_user.id)
-    return _trip_with_owner(new_trip)
+    return crud.trip_to_response(new_trip)
 
 
 @router.post("/{trip_id}/generate-days", response_model=List[schemas.Day])
@@ -97,6 +92,7 @@ def generate_days_for_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Auto-generate one Day row per date in the trip's date range."""
     trip = verify_trip_access(db, trip_id, current_user)
     return crud.generate_days_for_trip(db, trip)
 
@@ -107,6 +103,7 @@ def delete_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Delete a trip and all associated days/activities (cascading)."""
     trip = verify_trip_access(db, trip_id, current_user)
     db.delete(trip)
     db.commit()
@@ -120,6 +117,7 @@ def list_collaborators(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """List all collaborators on a trip with their user details."""
     verify_trip_access(db, trip_id, current_user)
     return crud.get_collaborators(db, trip_id)
 
@@ -131,6 +129,7 @@ def invite_collaborator(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Invite a registered user as a collaborator (owner only)."""
     trip = verify_trip_access(db, trip_id, current_user)
     if trip.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the trip owner can invite collaborators")
@@ -139,9 +138,7 @@ def invite_collaborator(
         raise HTTPException(status_code=404, detail="User not found — they must register first")
     if target_user.id == current_user.id:
         raise HTTPException(status_code=400, detail="You are already the owner")
-    # Check if already a collaborator
-    existing = crud.get_collaborators(db, trip_id)
-    if any(c["user_id"] == target_user.id for c in existing):
+    if crud.is_collaborator(db, trip_id, target_user.id):
         raise HTTPException(status_code=400, detail="User is already a collaborator")
     collab = crud.add_collaborator(db, trip_id, target_user.id, invite.role)
     return {
@@ -160,6 +157,7 @@ def remove_collaborator(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Remove a collaborator from a trip (owner only)."""
     trip = verify_trip_access(db, trip_id, current_user)
     if trip.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the trip owner can remove collaborators")

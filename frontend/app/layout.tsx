@@ -1,6 +1,7 @@
+/** Root layout — wraps every page with AuthProvider and the top navigation bar. */
 import "./globals.css";
 import AuthProvider from "@/contexts/AuthContext";
-import TopNav from "@/components/TopNav";
+import TopNav from "@/components/ui/TopNav";
 
 export const metadata = {
   title: "Navia",

@@ -1,4 +1,4 @@
-# backend/routers/days.py
+"""Day endpoints: list by trip, fetch by ID, and manual creation."""
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,6 +21,7 @@ def read_days_for_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """List all days for a trip."""
     verify_trip_access(db, trip_id, current_user)
     return crud.get_days_for_trip(db, trip_id=trip_id)
 
@@ -31,6 +32,7 @@ def read_day(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Fetch a single day by ID."""
     day = crud.get_day(db, day_id=day_id)
     if not day:
         raise HTTPException(status_code=404, detail="Day not found")
@@ -44,5 +46,6 @@ def create_day(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Create a single day row within a trip."""
     verify_trip_access(db, day.trip_id, current_user)
     return crud.create_day(db=db, day=day)

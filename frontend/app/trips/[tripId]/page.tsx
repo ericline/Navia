@@ -1,73 +1,68 @@
+/**
+ * Trip detail page — main planning interface for a single trip.
+ * Data fetching and CRUD handlers are delegated to useTripData;
+ * this file manages UI-only state (panels, modals, reveal overlay).
+ */
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import {
-  Trip,
-  Day,
-  Activity,
-  ActivityCreate,
-  ActivityUpdate,
-  fetchTrip,
-  fetchDaysForTrip,
-  fetchActivitiesForTrip,
-  generateDaysForTrip,
-  createActivity,
-  updateActivity,
-  deleteActivity,
-  deleteTrip,
-  reorderActivities,
-} from "@/lib/api";
 import { Plus, Share2 } from "lucide-react";
-import TripHeader from "@/components/TripHeader";
-import TripCalendarStrip from "@/components/TripCalendarStrip";
-import UnscheduledDock from "@/components/UnscheduledDock";
-import AddActivityPanel from "@/components/AddActivityPanel";
-import TripConstellation from "@/components/TripConstellation";
-import CollaboratorPanel from "@/components/CollaboratorPanel";
-import RecommendationModal from "@/components/RecommendationModal";
-import ArrangementBrowser from "@/components/ArrangementBrowser";
+import type { Activity } from "@/lib/types";
+import { fetchActivitiesForTrip } from "@/lib/api";
+import { TripHeader, TripCalendarStrip, UnscheduledDock, AddActivityPanel, CollaboratorPanel, RecommendationModal, ArrangementBrowser } from "@/components/trip";
+import { TripConstellation } from "@/components/constellation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTripData } from "@/hooks/useTripData";
 
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
 
   const tripIdParam = params?.tripId;
   const tripId = Array.isArray(tripIdParam)
     ? parseInt(tripIdParam[0], 10)
     : parseInt(tripIdParam as string, 10);
 
-  const [trip, setTrip] = useState<Trip | null>(null);
-  const [days, setDays] = useState<Day[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    trip,
+    sortedDays,
+    activities,
+    activitiesByDay,
+    unscheduledActivities,
+    loading,
+    error,
+    refreshActivities,
+    handleDeleteTrip,
+    handleCreateActivity,
+    handleUpdateActivity,
+    handleDeleteActivity,
+    handleReorderActivities,
+    handleScheduleActivity,
+  } = useTripData(tripId);
 
   // Calendar strip week pagination
   const [weekOffset, setWeekOffset] = useState(0);
 
-  // Panel state
+  // Add/edit activity panel
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelDayId, setPanelDayId] = useState<number | null>(null);
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
 
-  // Constellation reveal overlay (shown on Finish)
+  // Constellation reveal overlay
   const [showReveal, setShowReveal] = useState(false);
   const [revealDone, setRevealDone] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
   // Collaborator panel
   const [collabOpen, setCollabOpen] = useState(false);
-  const { user } = useAuth();
 
-  // AI recommendation modal (opened via ?recommend=1)
+  // AI modals
   const [recommendOpen, setRecommendOpen] = useState(false);
-  // AI arrangement browser (opened from UnscheduledDock)
   const [arrangeOpen, setArrangeOpen] = useState(false);
 
-  // Open the recommendation modal when ?recommend=1 is present
   useEffect(() => {
     if (searchParams?.get("recommend") === "1") {
       setRecommendOpen(true);
@@ -76,118 +71,30 @@ export default function TripDetailPage() {
 
   function closeRecommendations() {
     setRecommendOpen(false);
-    // Strip the query param so refresh doesn't re-open the modal
     if (searchParams?.get("recommend") === "1") {
       router.replace(`/trips/${tripId}`);
     }
   }
 
-  // Guard against React Strict Mode double-firing the generate call
-  const generatingRef = useRef(false);
-
-  // Fetch trip data + auto-generate days if none exist
-  useEffect(() => {
-    if (!tripId || Number.isNaN(tripId)) {
-      setError("Invalid trip id");
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const [tripData, daysData, activitiesData] = await Promise.all([
-          fetchTrip(tripId),
-          fetchDaysForTrip(tripId),
-          fetchActivitiesForTrip(tripId),
-        ]);
-        if (cancelled) return;
-        setTrip(tripData);
-        setActivities(activitiesData);
-
-        if (daysData.length === 0 && !generatingRef.current) {
-          generatingRef.current = true;
-          try {
-            await generateDaysForTrip(tripId);
-            if (cancelled) return;
-            const freshDays = await fetchDaysForTrip(tripId);
-            if (cancelled) return;
-            setDays(freshDays);
-          } finally {
-            generatingRef.current = false;
-          }
-        } else {
-          setDays(daysData);
-        }
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) setError("Failed to load trip details");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [tripId]);
-
-  // Derived data
-  const sortedDays = days
-    .slice()
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-  const activitiesByDay: Record<number, Activity[]> = {};
-  const unscheduledActivities: Activity[] = [];
-  for (const activity of activities) {
-    if (activity.day_id == null) {
-      unscheduledActivities.push(activity);
-    } else {
-      (activitiesByDay[activity.day_id] ??= []).push(activity);
-    }
-  }
-  // Sort each day's activities by position
-  for (const dayId of Object.keys(activitiesByDay)) {
-    activitiesByDay[Number(dayId)].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  function handleOpenPanel(dayId?: number) {
+    setEditingActivity(null);
+    setPanelDayId(dayId ?? null);
+    setPanelOpen(true);
   }
 
-  // Refresh activities from server
-  async function refreshActivities() {
-    setActivities(await fetchActivitiesForTrip(tripId));
+  function handleEditActivity(activity: Activity) {
+    setEditingActivity(activity);
+    setPanelDayId(null);
+    setPanelOpen(true);
   }
 
-  // Handlers
-  async function handleDeleteTrip() {
-    if (!window.confirm("Delete this trip? This cannot be undone.")) return;
-    try {
-      await deleteTrip(tripId);
-      router.push("/");
-    } catch (err) {
-      console.error(err);
-      setError("Failed to delete trip.");
-    }
-  }
-
-  function handleFinish() {
-    setShowReveal(true);
-    setRevealDone(false);
-  }
-
-  function handleRevealComplete() {
-    setRevealDone(true);
-  }
-
-  const constellationLiveUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/constellation/${tripId}`
-    : `/constellation/${tripId}`;
-
-  // CSS variable color map for SVG serialization
+  // Resolve CSS variable colors for PNG export of the constellation SVG
   const COLOR_MAP: Record<string, string> = {
     "rgb(var(--blue))": "rgb(75,134,180)",
     "rgb(var(--lightBlue))": "rgb(149,184,209)",
     "rgb(var(--darkBlue))": "rgb(43,65,98)",
     "rgb(var(--pink))": "rgb(184,107,119)",
   };
-
-  const svgRef = useRef<SVGSVGElement | null>(null);
 
   const handleShareImage = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -197,7 +104,6 @@ export default function TripDetailPage() {
     const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
     let svgString = new XMLSerializer().serializeToString(svgClone);
 
-    // Resolve CSS variables
     for (const [cssVar, resolved] of Object.entries(COLOR_MAP)) {
       svgString = svgString.replaceAll(cssVar, resolved);
     }
@@ -213,7 +119,6 @@ export default function TripDetailPage() {
     const ctx = canvas.getContext("2d")!;
     ctx.scale(2, 2);
 
-    // Warm background
     ctx.fillStyle = "rgb(250, 248, 246)";
     ctx.fillRect(0, 0, canvasW, canvasH);
 
@@ -230,7 +135,6 @@ export default function TripDetailPage() {
       img.src = url;
     });
 
-    // Add trip name
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.font = "bold 14px system-ui, sans-serif";
     ctx.textAlign = "center";
@@ -249,88 +153,18 @@ export default function TripDetailPage() {
         URL.revokeObjectURL(a.href);
       }
     }, "image/png");
-  }, [trip?.name, tripId]);
+  }, [trip?.name]);
 
   async function handleCopyLink(e: React.MouseEvent) {
     e.stopPropagation();
-    await navigator.clipboard.writeText(constellationLiveUrl);
+    const liveUrl = typeof window !== "undefined"
+      ? `${window.location.origin}/constellation/${tripId}`
+      : `/constellation/${tripId}`;
+    await navigator.clipboard.writeText(liveUrl);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   }
 
-  function handleOpenPanel(dayId?: number) {
-    setEditingActivity(null);
-    setPanelDayId(dayId ?? null);
-    setPanelOpen(true);
-  }
-
-  function handleEditActivity(activity: Activity) {
-    setEditingActivity(activity);
-    setPanelDayId(null);
-    setPanelOpen(true);
-  }
-
-  async function handleDeleteActivity(activityId: number) {
-    if (!window.confirm("Delete this activity?")) return;
-    try {
-      await deleteActivity(activityId);
-      await refreshActivities();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to delete activity.");
-    }
-  }
-
-  async function handleReorderActivities(_dayId: number, orderedIds: number[]) {
-    // Optimistic local update
-    setActivities((prev) => {
-      const updated = [...prev];
-      orderedIds.forEach((id, index) => {
-        const act = updated.find((a) => a.id === id);
-        if (act) act.position = index;
-      });
-      return updated;
-    });
-    try {
-      const orders = orderedIds.map((id, index) => ({ activity_id: id, position: index }));
-      await reorderActivities(orders);
-    } catch (err) {
-      console.error(err);
-      await refreshActivities();
-    }
-  }
-
-  async function handleCreateActivity(data: ActivityCreate) {
-    try {
-      await createActivity(data);
-      await refreshActivities();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to create activity.");
-    }
-  }
-
-  async function handleUpdateActivity(id: number, data: ActivityUpdate) {
-    try {
-      await updateActivity(id, data);
-      await refreshActivities();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to update activity.");
-    }
-  }
-
-  async function handleScheduleActivity(activityId: number, dayId: number) {
-    try {
-      await updateActivity(activityId, { day_id: dayId });
-      await refreshActivities();
-    } catch (err) {
-      console.error(err);
-      setError("Failed to schedule activity.");
-    }
-  }
-
-  // Loading / error states
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -352,7 +186,7 @@ export default function TripDetailPage() {
       <TripHeader
         trip={trip}
         onDelete={handleDeleteTrip}
-        onFinish={handleFinish}
+        onFinish={() => { setShowReveal(true); setRevealDone(false); }}
         onCollaborators={() => setCollabOpen(true)}
       />
 
@@ -377,7 +211,6 @@ export default function TripDetailPage() {
         </section>
       )}
 
-      {/* Floating add button */}
       <button
         onClick={() => handleOpenPanel()}
         className="fixed bottom-16 right-6 z-30 flex items-center justify-center w-12 h-12 rounded-full bg-blue shadow-lg hover:bg-blue/90 transition constellation-star-today"
@@ -385,7 +218,6 @@ export default function TripDetailPage() {
         <Plus className="h-5 w-5 text-white" />
       </button>
 
-      {/* Unscheduled dock */}
       <UnscheduledDock
         activities={unscheduledActivities}
         days={sortedDays}
@@ -395,37 +227,25 @@ export default function TripDetailPage() {
         onAutoArrange={() => setArrangeOpen(true)}
       />
 
-      {/* AI recommendation modal */}
       <RecommendationModal
         open={recommendOpen}
         tripId={tripId}
         onClose={closeRecommendations}
-        onAdded={async () => {
-          const fresh = await fetchActivitiesForTrip(tripId);
-          setActivities(fresh);
-        }}
+        onAdded={refreshActivities}
       />
 
-      {/* AI arrangement browser */}
       <ArrangementBrowser
         open={arrangeOpen}
         tripId={tripId}
         days={sortedDays}
         activities={activities}
         onClose={() => setArrangeOpen(false)}
-        onApplied={async () => {
-          const fresh = await fetchActivitiesForTrip(tripId);
-          setActivities(fresh);
-        }}
+        onApplied={refreshActivities}
       />
 
-      {/* Add / Edit activity panel */}
       <AddActivityPanel
         open={panelOpen}
-        onClose={() => {
-          setPanelOpen(false);
-          setEditingActivity(null);
-        }}
+        onClose={() => { setPanelOpen(false); setEditingActivity(null); }}
         onCreate={handleCreateActivity}
         onUpdate={handleUpdateActivity}
         tripId={tripId}
@@ -434,7 +254,6 @@ export default function TripDetailPage() {
         editingActivity={editingActivity}
       />
 
-      {/* Collaborator panel */}
       <CollaboratorPanel
         open={collabOpen}
         onClose={() => setCollabOpen(false)}
@@ -444,7 +263,6 @@ export default function TripDetailPage() {
         ownerEmail={trip?.owner_email ?? ""}
       />
 
-      {/* Constellation reveal overlay */}
       {showReveal && (
         <div
           className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-warmBg constellation-reveal-overlay ${revealDone ? "cursor-pointer" : ""}`}
@@ -465,7 +283,7 @@ export default function TripDetailPage() {
               destination={trip.destination}
               size="reveal"
               revealAnimation
-              onRevealComplete={handleRevealComplete}
+              onRevealComplete={() => setRevealDone(true)}
               onDayClick={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
             />
           </div>

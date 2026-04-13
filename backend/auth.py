@@ -119,19 +119,7 @@ def get_current_user(
     return user
 
 # ---------------------------------------------------------------------------
-# Authorization helper: verify trip ownership / collaboration
+# Authorization helper (re-exported from dependencies.py for backward compat)
 # ---------------------------------------------------------------------------
 
-def verify_trip_access(db: Session, trip_id: int, user: models.User) -> models.Trip:
-    """
-    Return the Trip if the user owns it or is a collaborator.
-    Raises 404 if trip doesn't exist, 403 if user has no access.
-    """
-    trip = db.query(models.Trip).filter(models.Trip.id == trip_id).first()
-    if not trip:
-        raise HTTPException(status_code=404, detail="Trip not found")
-    if trip.owner_id != user.id and not any(
-        c.user_id == user.id for c in trip.collaborators
-    ):
-        raise HTTPException(status_code=403, detail="Not authorized to access this trip")
-    return trip
+from dependencies import verify_trip_access  # noqa: F401

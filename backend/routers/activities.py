@@ -1,4 +1,4 @@
-# backend/routers/activities.py
+"""Activity endpoints: CRUD, batch reorder, and per-trip/per-day listing."""
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -21,17 +21,33 @@ def reorder_activities(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Batch-update activity positions using a single bulk UPDATE."""
     if not payload.orders:
         return []
+
+    # Single IN query instead of N individual fetches
+    activity_ids = [item.activity_id for item in payload.orders]
+    activities = (
+        db.query(models.Activity)
+        .filter(models.Activity.id.in_(activity_ids))
+        .all()
+    )
+    activity_map = {a.id: a for a in activities}
+
     trip_id = None
     for item in payload.orders:
-        activity = crud.get_activity(db, item.activity_id)
-        if not activity:
+        act = activity_map.get(item.activity_id)
+        if not act:
             raise HTTPException(status_code=404, detail=f"Activity {item.activity_id} not found")
         if trip_id is None:
-            trip_id = activity.trip_id
+            trip_id = act.trip_id
             verify_trip_access(db, trip_id, current_user)
-        activity.position = item.position
+
+    # Bulk update positions in a single statement
+    db.bulk_update_mappings(
+        models.Activity,
+        [{"id": item.activity_id, "position": item.position} for item in payload.orders],
+    )
     db.commit()
     return crud.get_activities_for_trip(db, trip_id)
 
@@ -42,6 +58,7 @@ def read_activities_for_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """List all activities for a trip, ordered by position."""
     verify_trip_access(db, trip_id, current_user)
     return crud.get_activities_for_trip(db, trip_id=trip_id)
 
@@ -52,6 +69,7 @@ def read_activities_for_day(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """List all activities scheduled on a specific day."""
     day = crud.get_day(db, day_id=day_id)
     if not day:
         raise HTTPException(status_code=404, detail="Day not found")
@@ -65,6 +83,7 @@ def read_activity(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Fetch a single activity by ID."""
     activity = crud.get_activity(db, activity_id=activity_id)
     if not activity:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -78,6 +97,7 @@ def create_activity(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Create a new activity within a trip, optionally assigned to a day."""
     verify_trip_access(db, activity.trip_id, current_user)
 
     if activity.day_id is not None:
@@ -100,6 +120,7 @@ def update_activity(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Partially update an activity's fields."""
     existing = crud.get_activity(db, activity_id=activity_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -114,6 +135,7 @@ def delete_activity(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Delete an activity by ID."""
     existing = crud.get_activity(db, activity_id=activity_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Activity not found")

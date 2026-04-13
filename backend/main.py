@@ -1,4 +1,4 @@
-# backend/main.py
+"""Navia API entry point — FastAPI app setup, CORS, and router registration."""
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

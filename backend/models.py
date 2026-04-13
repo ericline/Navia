@@ -1,4 +1,4 @@
-# backend/models.py
+"""SQLAlchemy ORM models for users, trips, days, activities, and collaborators."""
 from sqlalchemy import (
     Column,
     Integer,
@@ -16,6 +16,7 @@ from database import Base
 
 
 class User(Base):
+    """Registered user with optional travel preferences stored as individual columns."""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -43,6 +44,7 @@ class User(Base):
 
 
 class Trip(Base):
+    """A travel trip with date range, destination, and owner relationship."""
     __tablename__ = "trips"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -77,7 +79,7 @@ class Trip(Base):
 
 
 class TripCollaborator(Base):
-    """Future: allows sharing trips between users."""
+    """Junction table for trip sharing — maps users to trips with a role (editor/viewer)."""
     __tablename__ = "trip_collaborators"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -92,6 +94,7 @@ class TripCollaborator(Base):
 
 
 class Day(Base):
+    """A single day within a trip, auto-generated from the trip's date range."""
     __tablename__ = "days"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -110,6 +113,7 @@ class Day(Base):
 
 
 class Activity(Base):
+    """A planned activity within a trip, optionally scheduled to a specific day."""
     __tablename__ = "activities"
 
     id = Column(Integer, primary_key=True, index=True)

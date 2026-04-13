@@ -1,10 +1,11 @@
+/** Public constellation page — shareable trip visualization (no auth required). */
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { TripPublic, fetchTripConstellation } from "@/lib/api";
 import { formatDate, formatDestination } from "@/lib/utils";
-import TripConstellation from "@/components/TripConstellation";
+import { TripConstellation } from "@/components/constellation";
 
 export default function ConstellationPublicPage() {
   const params = useParams();

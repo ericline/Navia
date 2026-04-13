@@ -1,3 +1,4 @@
+/** Day map page — interactive Mapbox map showing routes between a day's activities. */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,7 +11,7 @@ import {
   fetchDaysForTrip,
   fetchActivitiesForTrip,
 } from "@/lib/api";
-import DayMap from "@/components/DayMap";
+import { DayMap } from "@/components/map";
 
 export default function DayMapPage() {
   const params = useParams();

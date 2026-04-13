@@ -1,4 +1,4 @@
-# backend/routers/ai.py
+"""AI endpoints: activity recommendations (Claude Haiku) and deterministic arrangement strategies."""
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +25,7 @@ def recommend_for_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Generate AI-powered activity recommendations based on trip destination and user preferences."""
     trip = verify_trip_access(db, trip_id, current_user)
     prefs = crud.user_preferences_from_db(current_user)
     prefs_dict = {
@@ -62,6 +63,7 @@ def arrange_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Generate up to 5 deterministic arrangement strategies for unscheduled activities."""
     trip = verify_trip_access(db, trip_id, current_user)
     prefs = crud.user_preferences_from_db(current_user)
 
@@ -95,21 +97,37 @@ def apply_arrangement(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Apply a chosen arrangement by batch-updating activity day/position/time assignments."""
     verify_trip_access(db, trip_id, current_user)
+
+    # Single IN query instead of N individual fetches
+    activity_ids = [a.activity_id for a in req.assignments]
+    activities = (
+        db.query(models.Activity)
+        .filter(models.Activity.id.in_(activity_ids), models.Activity.trip_id == trip_id)
+        .all()
+    )
+    valid_ids = {a.id for a in activities}
+
+    # Build bulk update mappings
+    from datetime import time as _time
+
+    mappings = []
     for a in req.assignments:
-        activity = db.query(models.Activity).filter(models.Activity.id == a.activity_id).first()
-        if not activity or activity.trip_id != trip_id:
+        if a.activity_id not in valid_ids:
             continue
-        activity.day_id = a.day_id
-        activity.position = a.position
+        update: dict = {"id": a.activity_id, "day_id": a.day_id, "position": a.position}
         if a.start_time:
-            from datetime import time as _time
             parts = a.start_time.split(":")
             try:
-                activity.start_time = _time(
+                update["start_time"] = _time(
                     int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
                 )
             except (ValueError, IndexError):
                 pass
+        mappings.append(update)
+
+    if mappings:
+        db.bulk_update_mappings(models.Activity, mappings)
     db.commit()
-    return {"status": "ok", "applied": len(req.assignments)}
+    return {"status": "ok", "applied": len(mappings)}

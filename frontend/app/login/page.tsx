@@ -1,3 +1,4 @@
+/** Login/registration page with toggle between sign-in and sign-up forms. */
 "use client";
 
 import { useState, useEffect, Suspense } from "react";

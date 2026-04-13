@@ -1,3 +1,4 @@
+/** Current trips page — full list of upcoming/active trips with navigation cards. */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

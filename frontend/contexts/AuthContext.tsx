@@ -1,3 +1,8 @@
+/**
+ * AuthContext - Provides authentication state (user, login, register, logout)
+ * and user profile updates to the entire app via React context. Persists
+ * JWT tokens in localStorage.
+ */
 "use client";
 
 import {

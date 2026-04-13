@@ -1,8 +1,53 @@
-// frontend/lib/api.ts
+/**
+ * API client for the Navia backend. All fetch calls to the backend are
+ * centralized here. Types are defined in ./types and re-exported for
+ * backward-compatible imports.
+ */
+
+import type {
+  Trip,
+  TripCreate,
+  TripPublic,
+  TripDetailed,
+  Day,
+  DayCreate,
+  Activity,
+  ActivityCreate,
+  ActivityUpdate,
+  UserOut,
+  UserUpdate,
+  RecommendationResponse,
+  Arrangement,
+  ArrangementAssignment,
+  Collaborator,
+} from "./types";
+
+// Re-export all types so existing `import { Trip } from '@/lib/api'` still works
+export type {
+  Trip,
+  TripCreate,
+  TripPublic,
+  TripDetailed,
+  Day,
+  DayCreate,
+  Activity,
+  ActivityCreate,
+  ActivityUpdate,
+  UserPreferences,
+  UserOut,
+  UserUpdate,
+  RecommendedActivity,
+  RecommendationResponse,
+  ArrangementAssignment,
+  Arrangement,
+  Collaborator,
+  BucketItem,
+} from "./types";
+
+export { DEFAULT_PREFERENCES } from "./types";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-// ---------- Auth helpers ----------
 
 function authHeaders(): HeadersInit {
   if (typeof window === "undefined") return {};
@@ -10,138 +55,9 @@ function authHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// ---------- Types ----------
-
-export interface Trip {
-  id: number;
-  name: string;
-  destination: string;
-  start_date: string; // ISO date
-  end_date: string;
-  timezone: string;
-  owner_id: number | null;
-  owner_name?: string | null;
-  owner_email?: string | null;
-}
-
-export interface TripCreate {
-  name: string;
-  destination: string;
-  start_date: string;
-  end_date: string;
-  timezone?: string;
-}
-
-export interface Day {
-  id: number;
-  trip_id: number;
-  date: string; // ISO date
-  name?: string | null;
-  notes?: string | null;
-}
-
-export interface DayCreate {
-  trip_id: number;
-  date: string;
-  name?: string;
-  notes?: string;
-}
-
-export interface Activity {
-  id: number;
-  trip_id: number;
-  day_id?: number | null;
-
-  name: string;
-  category?: string | null;
-  address?: string | null;
-
-  lat?: number | null;
-  lng?: number | null;
-
-  est_duration_minutes?: number | null;
-  cost_estimate?: number | null;
-  energy_level?: string | null;
-  must_do: boolean;
-  start_time?: string | null;
-  notes?: string | null;
-  position: number;
-}
-
-export interface ActivityCreate {
-  trip_id: number;
-  day_id?: number | null;
-
-  name: string;
-  category?: string;
-  address?: string;
-
-  lat?: number | null;
-  lng?: number | null;
-
-  est_duration_minutes?: number | null;
-  cost_estimate?: number | null;
-  energy_level?: string | null;
-  must_do?: boolean;
-  start_time?: string | null;
-  notes?: string | null;
-}
-
-export interface ActivityUpdate {
-  day_id?: number | null;
-  name?: string;
-  category?: string;
-  address?: string;
-  lat?: number | null;
-  lng?: number | null;
-  est_duration_minutes?: number | null;
-  cost_estimate?: number | null;
-  energy_level?: string | null;
-  must_do?: boolean;
-  start_time?: string | null;
-  notes?: string | null;
-  unschedule?: boolean;
-}
-
 // ---------- User API ----------
 
-export interface UserPreferences {
-  max_walking_km: number;
-  max_activity_budget: number;
-  likes: string[];
-  dislikes: string[];
-  pace: "relaxed" | "balanced" | "packed";
-  day_start: string; // "HH:MM:SS"
-  day_end: string;
-  dietary: string[];
-}
-
-export const DEFAULT_PREFERENCES: UserPreferences = {
-  max_walking_km: 2.0,
-  max_activity_budget: 100.0,
-  likes: [],
-  dislikes: [],
-  pace: "balanced",
-  day_start: "09:00:00",
-  day_end: "21:00:00",
-  dietary: [],
-};
-
-export interface UserOut {
-  id: number;
-  name: string;
-  email: string;
-  birthday: string | null;
-  preferences: UserPreferences;
-}
-
-export interface UserUpdate {
-  name?: string;
-  email?: string;
-  birthday?: string | null;
-  preferences?: UserPreferences;
-}
-
+/** Update the authenticated user's profile or preferences. */
 export async function updateUser(data: UserUpdate): Promise<UserOut> {
   const res = await fetch(`${API_BASE_URL}/auth/me`, {
     method: "PATCH",
@@ -157,15 +73,7 @@ export async function updateUser(data: UserUpdate): Promise<UserOut> {
 
 // ---------- Public API ----------
 
-export interface TripPublic {
-  id: number;
-  name: string;
-  destination: string;
-  start_date: string;
-  end_date: string;
-  day_count: number;
-}
-
+/** Fetch public constellation data for a trip (no auth required). */
 export async function fetchTripConstellation(tripId: number): Promise<TripPublic> {
   const res = await fetch(`${API_BASE_URL}/trips/${tripId}/constellation`);
   if (!res.ok) throw new Error("Failed to fetch constellation");
@@ -174,11 +82,7 @@ export async function fetchTripConstellation(tripId: number): Promise<TripPublic
 
 // ---------- Aggregated Trip API ----------
 
-export interface TripDetailed extends Trip {
-  days: Day[];
-  activities: Activity[];
-}
-
+/** Fetch all trips with their days and activities in a single request. */
 export async function fetchTripsDetailed(): Promise<TripDetailed[]> {
   const res = await fetch(`${API_BASE_URL}/trips/detailed`, {
     headers: { ...authHeaders() },
@@ -192,6 +96,7 @@ export async function fetchTripsDetailed(): Promise<TripDetailed[]> {
 
 // ---------- Trip API ----------
 
+/** Fetch all trips for the authenticated user. */
 export async function fetchTrips(): Promise<Trip[]> {
   const res = await fetch(`${API_BASE_URL}/trips/`, {
     headers: { ...authHeaders() },
@@ -203,6 +108,7 @@ export async function fetchTrips(): Promise<Trip[]> {
   return res.json();
 }
 
+/** Fetch a single trip by ID. */
 export async function fetchTrip(id: number): Promise<Trip> {
   const res = await fetch(`${API_BASE_URL}/trips/${id}`, {
     headers: { ...authHeaders() },
@@ -214,6 +120,7 @@ export async function fetchTrip(id: number): Promise<Trip> {
   return res.json();
 }
 
+/** Create a new trip. */
 export async function createTrip(data: TripCreate): Promise<Trip> {
   const res = await fetch(`${API_BASE_URL}/trips/`, {
     method: "POST",
@@ -238,6 +145,7 @@ export async function createTrip(data: TripCreate): Promise<Trip> {
   return res.json();
 }
 
+/** Delete a trip by ID. */
 export async function deleteTrip(id: number): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/trips/${id}`, {
     method: "DELETE",
@@ -249,6 +157,7 @@ export async function deleteTrip(id: number): Promise<void> {
   }
 }
 
+/** Auto-generate day entries for a trip based on its date range. */
 export async function generateDaysForTrip(tripId: number): Promise<Day[]> {
   const res = await fetch(`${API_BASE_URL}/trips/${tripId}/generate-days`, {
     method: "POST",
@@ -263,6 +172,7 @@ export async function generateDaysForTrip(tripId: number): Promise<Day[]> {
 
 // ---------- Days API ----------
 
+/** Fetch all days belonging to a trip. */
 export async function fetchDaysForTrip(tripId: number): Promise<Day[]> {
   const res = await fetch(`${API_BASE_URL}/days/trip/${tripId}`, {
     headers: { ...authHeaders() },
@@ -274,6 +184,7 @@ export async function fetchDaysForTrip(tripId: number): Promise<Day[]> {
   return res.json();
 }
 
+/** Create a new day entry. */
 export async function createDay(data: DayCreate): Promise<Day> {
   const res = await fetch(`${API_BASE_URL}/days/`, {
     method: "POST",
@@ -289,6 +200,7 @@ export async function createDay(data: DayCreate): Promise<Day> {
 
 // ---------- Activities API ----------
 
+/** Fetch all activities belonging to a trip. */
 export async function fetchActivitiesForTrip(
   tripId: number
 ): Promise<Activity[]> {
@@ -306,6 +218,7 @@ export async function fetchActivitiesForTrip(
   return res.json();
 }
 
+/** Create a new activity. */
 export async function createActivity(
   data: ActivityCreate
 ): Promise<Activity> {
@@ -325,6 +238,7 @@ export async function createActivity(
   return res.json();
 }
 
+/** Partially update an activity by ID. */
 export async function updateActivity(
   id: number,
   data: ActivityUpdate
@@ -341,6 +255,7 @@ export async function updateActivity(
   return res.json();
 }
 
+/** Delete an activity by ID. */
 export async function deleteActivity(id: number): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/activities/${id}`, {
     method: "DELETE",
@@ -352,6 +267,7 @@ export async function deleteActivity(id: number): Promise<void> {
   }
 }
 
+/** Batch-update activity positions within a day. */
 export async function reorderActivities(
   orders: { activity_id: number; position: number }[]
 ): Promise<Activity[]> {
@@ -369,22 +285,7 @@ export async function reorderActivities(
 
 // ---------- AI / Recommendations API ----------
 
-export interface RecommendedActivity {
-  name: string;
-  category?: string;
-  address?: string;
-  est_duration_minutes?: number;
-  cost_estimate?: number;
-  energy_level?: "low" | "medium" | "high";
-  must_do?: boolean;
-  notes?: string;
-}
-
-export interface RecommendationResponse {
-  enabled: boolean;
-  recommendations: RecommendedActivity[];
-}
-
+/** Request AI-generated activity recommendations for a trip. */
 export async function fetchRecommendations(
   tripId: number
 ): Promise<RecommendationResponse> {
@@ -398,19 +299,7 @@ export async function fetchRecommendations(
   return res.json();
 }
 
-export interface ArrangementAssignment {
-  activity_id: number;
-  day_id: number;
-  position: number;
-  start_time?: string | null;
-}
-
-export interface Arrangement {
-  name: string;
-  description: string;
-  assignments: ArrangementAssignment[];
-}
-
+/** Request AI-generated day arrangements for a trip's activities. */
 export async function generateArrangements(
   tripId: number
 ): Promise<Arrangement[]> {
@@ -425,6 +314,7 @@ export async function generateArrangements(
   return res.json();
 }
 
+/** Apply a chosen arrangement to a trip (batch-updates activity day/position/time). */
 export async function applyArrangement(
   tripId: number,
   assignments: ArrangementAssignment[]
@@ -444,14 +334,7 @@ export async function applyArrangement(
 
 // ---------- Collaborators API ----------
 
-export interface Collaborator {
-  id: number;
-  user_id: number;
-  user_name: string;
-  user_email: string;
-  role: string;
-}
-
+/** Fetch all collaborators on a trip. */
 export async function fetchCollaborators(tripId: number): Promise<Collaborator[]> {
   const res = await fetch(`${API_BASE_URL}/trips/${tripId}/collaborators`, {
     headers: { ...authHeaders() },
@@ -460,6 +343,7 @@ export async function fetchCollaborators(tripId: number): Promise<Collaborator[]
   return res.json();
 }
 
+/** Invite a collaborator to a trip by email. */
 export async function addCollaborator(
   tripId: number,
   email: string,
@@ -477,6 +361,7 @@ export async function addCollaborator(
   return res.json();
 }
 
+/** Remove a collaborator from a trip. */
 export async function removeCollaborator(tripId: number, userId: number): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/trips/${tripId}/collaborators/${userId}`, {
     method: "DELETE",

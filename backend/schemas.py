@@ -1,4 +1,4 @@
-# backend/schemas.py
+"""Pydantic schemas for request/response validation across all API endpoints."""
 from datetime import date, time
 from typing import Literal, Optional
 

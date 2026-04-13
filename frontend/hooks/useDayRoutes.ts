@@ -1,3 +1,8 @@
+/**
+ * useDayRoutes - Fetches Mapbox Directions API routes between a day's
+ * activities for rendering on the DayMap. Returns route GeoJSON and
+ * turn-by-turn steps.
+ */
 "use client";
 
 import { useEffect, useState } from "react";

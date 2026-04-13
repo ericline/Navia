@@ -1,4 +1,4 @@
-# backend/routers/auth.py
+"""Authentication endpoints: registration, login, and user profile management."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ router = APIRouter(
 
 @router.post("/register", response_model=schemas.Token)
 def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+    """Create a new user account and return a JWT token."""
     if crud.get_user_by_email(db, user_in.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -31,6 +32,7 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=schemas.Token)
 def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate with email/password and return a JWT token."""
     user = crud.get_user_by_email(db, credentials.email)
     if not user or not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(
@@ -47,6 +49,7 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user: models.User = Depends(get_current_user)):
+    """Return the authenticated user's profile and preferences."""
     return crud.user_to_out(current_user)
 
 
@@ -56,6 +59,7 @@ def update_me(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
+    """Partially update the authenticated user's profile and/or preferences."""
     if "email" in update.model_fields_set and update.email != current_user.email:
         existing = crud.get_user_by_email(db, update.email)
         if existing and existing.id != current_user.id:
