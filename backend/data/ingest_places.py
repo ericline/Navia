@@ -25,7 +25,9 @@ from sqlalchemy.orm import Session
 import models
 from data.category_mapping import (
     CATEGORY_SEARCH_TERMS,
+    CUISINE_HINTS,
     SKIP_CATEGORIES,
+    get_neighborhoods,
     map_google_types_to_category,
 )
 
@@ -142,10 +144,31 @@ def _build_embedding_text(place: dict) -> str:
     return ". ".join(parts)
 
 
+def _build_queries(destination: str, cats: list[str], depth: str) -> list[tuple[str, str]]:
+    """Build (category, query) tuples for an ingestion run."""
+    queries: list[tuple[str, str]] = []
+    for cat in cats:
+        term = CATEGORY_SEARCH_TERMS.get(cat, cat)
+        queries.append((cat, f"{term} in {destination}"))
+
+    if depth == "deep":
+        neighborhoods = get_neighborhoods(destination)
+        for hood in neighborhoods:
+            for cat in cats:
+                if cat == "food":
+                    continue  # food gets cuisine-specific sub-queries below
+                term = CATEGORY_SEARCH_TERMS.get(cat, cat)
+                queries.append((cat, f"{term} in {hood}, {destination}"))
+            for cuisine in CUISINE_HINTS:
+                queries.append(("food", f"{cuisine} in {hood}, {destination}"))
+    return queries
+
+
 def ingest_destination(
     destination: str,
     db: Session,
     categories: list[str] | None = None,
+    depth: str = "shallow",
 ) -> int:
     """Ingest places for a destination from Google Places API.
 
@@ -153,6 +176,8 @@ def ingest_destination(
         destination: e.g. "Tokyo, Japan"
         db: SQLAlchemy session
         categories: subset of CATEGORY_SEARCH_TERMS keys to ingest (default: all)
+        depth: "shallow" (one query per category) or "deep" (adds neighborhood
+               and cuisine sub-queries for supported destinations).
 
     Returns:
         Number of places upserted.
@@ -166,9 +191,10 @@ def ingest_destination(
     total = 0
     seen_ids: set[str] = set()  # track google_place_ids within this run to avoid duplicates
 
-    for cat in cats:
-        search_term = CATEGORY_SEARCH_TERMS.get(cat, cat)
-        query = f"{search_term} in {destination}"
+    queries = _build_queries(destination, cats, depth)
+    logger.info("Ingesting %s (depth=%s, %d queries)", destination, depth, len(queries))
+
+    for _cat, query in queries:
         logger.info("Searching: %s", query)
 
         raw_places = _search_places(query, max_results=20)
@@ -227,14 +253,20 @@ if __name__ == "__main__":
 
     dest = sys.argv[1]
     cats = None
+    depth = "shallow"
     for arg in sys.argv[2:]:
         if arg.startswith("--categories="):
             cats = arg.split("=", 1)[1].split(",")
+        elif arg.startswith("--depth="):
+            depth = arg.split("=", 1)[1]
+            if depth not in ("shallow", "deep"):
+                print(f"Invalid --depth={depth}; must be 'shallow' or 'deep'")
+                sys.exit(1)
 
     from database import SessionLocal
     session = SessionLocal()
     try:
-        count = ingest_destination(dest, session, categories=cats)
-        print(f"Done — ingested {count} places for {dest}")
+        count = ingest_destination(dest, session, categories=cats, depth=depth)
+        print(f"Done — ingested {count} places for {dest} (depth={depth})")
     finally:
         session.close()

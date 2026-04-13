@@ -99,6 +99,30 @@ CATEGORY_SEARCH_TERMS: dict[str, str] = {
 # Categories we skip during ingestion (transport/hotel are not recommendation-worthy)
 SKIP_CATEGORIES = {"transport", "hotel"}
 
+# Neighborhoods for deep-ingestion sub-queries. Keys are matched against
+# normalized destination strings (lowercased, whitespace-collapsed).
+NEIGHBORHOOD_HINTS: dict[str, list[str]] = {
+    "new york, ny": ["Manhattan", "Brooklyn", "Midtown", "SoHo", "Williamsburg"],
+    "boston, ma": ["Back Bay", "North End", "Cambridge", "Seaport", "Beacon Hill"],
+    "seattle, wa": ["Capitol Hill", "Ballard", "Belltown", "Fremont", "Pioneer Square"],
+    "san francisco, ca": ["Mission", "North Beach", "SoMa", "Hayes Valley", "Chinatown"],
+    "chicago, il": ["Loop", "Wicker Park", "Lincoln Park", "River North", "Pilsen"],
+}
+
+# Cuisine/style sub-queries applied to the "food" category during deep ingestion.
+CUISINE_HINTS: list[str] = [
+    "Italian", "Japanese ramen", "brunch spots", "fine dining", "cheap eats",
+]
+
+
+def _normalize_destination(destination: str) -> str:
+    return " ".join(destination.lower().split())
+
+
+def get_neighborhoods(destination: str) -> list[str]:
+    """Return neighborhood sub-query hints for a destination, or empty list."""
+    return NEIGHBORHOOD_HINTS.get(_normalize_destination(destination), [])
+
 
 def map_google_types_to_category(types: list[str]) -> str:
     """Map a list of Google Places types to a single Navia category.

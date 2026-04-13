@@ -8,6 +8,8 @@ import {
   RecommendedActivity,
   fetchRecommendations,
   createActivity,
+  sendRecommendationFeedback,
+  placePhotoUrl,
 } from "@/lib/api";
 
 interface Props {
@@ -71,7 +73,7 @@ export default function RecommendationModal({
 
   async function handleAdd() {
     if (selected.size === 0) {
-      onClose();
+      handleClose();
       return;
     }
     setAdding(true);
@@ -94,7 +96,14 @@ export default function RecommendationModal({
           must_do: r.must_do ?? false,
           notes: r.notes,
         });
+        void sendRecommendationFeedback(tripId, r.place_id ?? null, "added");
       }
+      // Fire skipped feedback for recs the user saw but didn't add
+      recs.forEach((r, idx) => {
+        if (!selected.has(idx)) {
+          void sendRecommendationFeedback(tripId, r.place_id ?? null, "skipped");
+        }
+      });
       onAdded();
       onClose();
     } catch (err: unknown) {
@@ -102,6 +111,16 @@ export default function RecommendationModal({
     } finally {
       setAdding(false);
     }
+  }
+
+  function handleClose() {
+    // User dismissed the modal without adding anything — mark all rendered recs as skipped
+    if (recs.length > 0 && !adding) {
+      recs.forEach((r) => {
+        void sendRecommendationFeedback(tripId, r.place_id ?? null, "skipped");
+      });
+    }
+    onClose();
   }
 
   if (!mounted || !open) return null;
@@ -118,7 +137,7 @@ export default function RecommendationModal({
             </h2>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-lg hover:bg-black/5 transition text-black/40"
           >
             <X className="h-4 w-4" />
@@ -188,6 +207,15 @@ export default function RecommendationModal({
                             </svg>
                           )}
                         </div>
+                        {r.photo_reference && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={placePhotoUrl(r.photo_reference, 160)}
+                            alt=""
+                            loading="lazy"
+                            className="h-14 w-14 rounded-lg object-cover shrink-0 bg-black/5"
+                          />
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-semibold text-black/85">
@@ -257,7 +285,7 @@ export default function RecommendationModal({
           </span>
           <div className="flex items-center gap-2">
             <button
-              onClick={onClose}
+              onClick={handleClose}
               disabled={adding}
               className="px-4 py-2 text-sm text-black/60 rounded-lg hover:bg-black/5 transition"
             >

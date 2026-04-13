@@ -1,0 +1,9 @@
+{
+  "val_loss": 0.5766,
+  "val_mae": 0.0244,
+  "n_real": 0,
+  "n_synth": 600000,
+  "epochs": 20,
+  "real_fraction": 0.0,
+  "note": "Synthetic-only bootstrap training from Session 03 (2026-04-13)."
+}

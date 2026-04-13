@@ -15,7 +15,7 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,37 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 _MAPBOX_TOKEN = os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN") or os.getenv("MAPBOX_TOKEN", "")
+_GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
+
+
+@router.get("/places/photo")
+def proxy_place_photo(ref: str, max_h: int = 200):
+    """Proxy Google Places Photos API so the API key isn't exposed to the browser.
+
+    `ref` is the stored photo_reference (e.g. "places/ABC/photos/XYZ").
+    """
+    if not _GOOGLE_PLACES_API_KEY:
+        raise HTTPException(status_code=503, detail="Places API not configured")
+    if not ref or ".." in ref:
+        raise HTTPException(status_code=400, detail="invalid ref")
+    max_h = max(64, min(max_h, 800))
+    url = f"https://places.googleapis.com/v1/{ref}/media"
+    try:
+        resp = httpx.get(
+            url,
+            params={"key": _GOOGLE_PLACES_API_KEY, "maxHeightPx": str(max_h)},
+            timeout=8.0,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as e:
+        logger.warning("place photo fetch failed: %s", e)
+        raise HTTPException(status_code=502, detail="photo fetch failed")
+    return Response(
+        content=resp.content,
+        media_type=resp.headers.get("content-type", "image/jpeg"),
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 def _geocode_address(address: str, proximity: tuple[float, float] | None = None) -> tuple[float, float] | None:
@@ -83,6 +114,7 @@ _MIN_PLACES_THRESHOLD = 20  # minimum places needed to use ML pipeline
 def _place_to_rec_dict(place: models.Place) -> dict:
     """Convert a Place ORM object to the recommendation dict format expected by the frontend."""
     return {
+        "place_id": place.id,
         "name": place.name,
         "category": place.category,
         "address": place.address,

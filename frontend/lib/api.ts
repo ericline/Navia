@@ -299,6 +299,31 @@ export async function fetchRecommendations(
   return res.json();
 }
 
+/** Build a URL for the backend Google Places photo proxy. */
+export function placePhotoUrl(photoReference: string, maxHeightPx = 200): string {
+  return `${API_BASE_URL}/ai/places/photo?ref=${encodeURIComponent(photoReference)}&max_h=${maxHeightPx}`;
+}
+
+/** Record recommendation feedback (fire-and-forget; errors are logged but swallowed). */
+export async function sendRecommendationFeedback(
+  tripId: number,
+  placeId: number | null,
+  signal: "added" | "skipped" | "scheduled" | "deleted" | "must_do"
+): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/ai/trips/${tripId}/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ place_id: placeId, signal }),
+    });
+    if (!res.ok) {
+      console.warn("sendRecommendationFeedback non-ok", res.status);
+    }
+  } catch (err) {
+    console.warn("sendRecommendationFeedback failed", err);
+  }
+}
+
 /** Request AI-generated day arrangements for a trip's activities. */
 export async function generateArrangements(
   tripId: number

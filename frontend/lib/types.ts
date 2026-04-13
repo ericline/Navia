@@ -167,6 +167,7 @@ export interface RecommendedActivity {
   must_do?: boolean;
   notes?: string;
   // ML pipeline fields (from Google Places data)
+  place_id?: number | null;
   rating?: number | null;
   rating_count?: number | null;
   price_level?: number | null;
