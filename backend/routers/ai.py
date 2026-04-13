@@ -1,6 +1,20 @@
-"""AI endpoints: activity recommendations (Claude Haiku) and deterministic arrangement strategies."""
-from typing import Any
+"""AI endpoints: ML-powered recommendations and deterministic arrangement strategies.
 
+Recommendation pipeline:
+1. Check if places exist for the destination in the DB
+2. If not, ingest from Google Places API (on-demand)
+3. Retrieve top candidates via embedding similarity
+4. Re-rank with TensorFlow scoring model (or heuristic fallback)
+5. Apply MMR diversity re-ranking
+6. Fall back to Claude Haiku for destinations with insufficient data
+"""
+import json
+import logging
+import os
+from typing import Any
+from urllib.parse import quote
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -10,13 +24,114 @@ import arrangement
 import crud
 import models
 from auth import get_current_user, get_db, verify_trip_access
+from data.ingest_places import ingest_destination, get_place_count
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+
+_MAPBOX_TOKEN = os.getenv("NEXT_PUBLIC_MAPBOX_TOKEN") or os.getenv("MAPBOX_TOKEN", "")
+
+
+def _geocode_address(address: str, proximity: tuple[float, float] | None = None) -> tuple[float, float] | None:
+    """Geocode a single address via Mapbox Geocoding v5. Returns (lng, lat) or None."""
+    if not _MAPBOX_TOKEN or not address:
+        return None
+    url = f"https://api.mapbox.com/geocoding/v5/mapbox.places/{quote(address)}.json"
+    params: dict[str, str] = {"access_token": _MAPBOX_TOKEN, "limit": "1"}
+    if proximity:
+        params["proximity"] = f"{proximity[0]},{proximity[1]}"
+    try:
+        resp = httpx.get(url, params=params, timeout=5.0)
+        resp.raise_for_status()
+        features = resp.json().get("features", [])
+        if features:
+            lng, lat = features[0]["geometry"]["coordinates"]
+            return (lng, lat)
+    except Exception:
+        pass
+    return None
+
+
+def _batch_geocode_recommendations(recs: list[dict], destination: str) -> list[dict]:
+    """Geocode all recommendation addresses, using destination as proximity bias."""
+    # First geocode the destination itself for proximity bias
+    dest_coords = _geocode_address(destination)
+
+    for rec in recs:
+        address = rec.get("address")
+        if not address:
+            continue
+        # Append destination to address for better geocoding accuracy
+        full_address = f"{address}, {destination}"
+        coords = _geocode_address(full_address, proximity=dest_coords)
+        if coords:
+            rec["lng"] = coords[0]
+            rec["lat"] = coords[1]
+
+    return recs
 
 
 class RecommendationResponse(BaseModel):
     enabled: bool
     recommendations: list[dict]
+
+
+_MIN_PLACES_THRESHOLD = 20  # minimum places needed to use ML pipeline
+
+
+def _place_to_rec_dict(place: models.Place) -> dict:
+    """Convert a Place ORM object to the recommendation dict format expected by the frontend."""
+    return {
+        "name": place.name,
+        "category": place.category,
+        "address": place.address,
+        "lat": place.lat,
+        "lng": place.lng,
+        "est_duration_minutes": 90,  # default estimate
+        "cost_estimate": (place.price_level or 2) * 25.0,  # rough mapping
+        "energy_level": "medium",
+        "must_do": (place.rating or 0) >= 4.5 and (place.rating_count or 0) > 500,
+        "notes": place.description or "",
+        "rating": place.rating,
+        "rating_count": place.rating_count,
+        "price_level": place.price_level,
+        "photo_reference": place.photo_reference,
+        "google_place_id": place.google_place_id,
+        "verified": True,
+    }
+
+
+def _ml_recommend(trip: models.Trip, prefs, db: Session) -> list[dict]:
+    """Run the custom ML recommendation pipeline: retrieve → score → diversify."""
+    from ml.encoder import build_query_embedding, vector_search
+    from ml.scorer import score_candidates, diversity_rerank
+
+    # Step 1: Ensure enough places exist for this destination
+    count = get_place_count(db, trip.destination)
+    if count < _MIN_PLACES_THRESHOLD:
+        logger.info("Only %d places for %s — ingesting from Google Places", count, trip.destination)
+        ingest_destination(trip.destination, db)
+        count = get_place_count(db, trip.destination)
+
+    if count < 5:
+        logger.warning("Insufficient places (%d) for %s after ingestion", count, trip.destination)
+        return []
+
+    # Step 2: Retrieve candidates via embedding similarity
+    query_emb = build_query_embedding(trip.destination, prefs)
+    candidates = vector_search(db, trip.destination, query_emb, limit=50)
+
+    if not candidates:
+        return []
+
+    # Step 3: Score and rank with TF model (or heuristic fallback)
+    scored = score_candidates(prefs, candidates)
+
+    # Step 4: Diversity re-ranking via MMR
+    top_places = diversity_rerank(scored, top_k=10, lambda_=0.7)
+
+    return [_place_to_rec_dict(p) for p in top_places]
 
 
 @router.post("/trips/{trip_id}/recommend", response_model=RecommendationResponse)
@@ -25,22 +140,40 @@ def recommend_for_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Generate AI-powered activity recommendations based on trip destination and user preferences."""
+    """Generate activity recommendations using custom ML pipeline with Claude fallback."""
     trip = verify_trip_access(db, trip_id, current_user)
     prefs = crud.user_preferences_from_db(current_user)
-    prefs_dict = {
-        "likes": prefs.likes,
-        "dislikes": prefs.dislikes,
-        "max_activity_budget": prefs.max_activity_budget,
-        "max_walking_km": prefs.max_walking_km,
-        "pace": prefs.pace,
-        "dietary": prefs.dietary,
-    }
-    days = (trip.end_date - trip.start_date).days + 1
-    recs = ai_client.recommend_activities(trip.destination, days, prefs_dict)
+
+    # Try custom ML pipeline first
+    recs: list[dict] = []
+    try:
+        recs = _ml_recommend(trip, prefs, db)
+    except Exception as e:
+        logger.error("ML recommendation pipeline failed: %s", e, exc_info=True)
+
+    # Fallback to Claude if ML pipeline returned insufficient results
+    if len(recs) < 5:
+        logger.info("ML pipeline returned %d results — falling back to Claude", len(recs))
+        prefs_dict = {
+            "likes": prefs.likes,
+            "dislikes": prefs.dislikes,
+            "max_activity_budget": prefs.max_activity_budget,
+            "max_walking_km": prefs.max_walking_km,
+            "pace": prefs.pace,
+            "dietary": prefs.dietary,
+        }
+        days = (trip.end_date - trip.start_date).days + 1
+        claude_recs = ai_client.recommend_activities(trip.destination, days, prefs_dict)
+        if claude_recs and _MAPBOX_TOKEN:
+            claude_recs = _batch_geocode_recommendations(claude_recs, trip.destination)
+        # Mark Claude results as unverified
+        for r in claude_recs:
+            r["verified"] = False
+        recs = recs + claude_recs
+
     return RecommendationResponse(
-        enabled=ai_client.is_enabled(),
-        recommendations=recs,
+        enabled=True,
+        recommendations=recs[:10],
     )
 
 
@@ -67,10 +200,9 @@ def arrange_trip(
     trip = verify_trip_access(db, trip_id, current_user)
     prefs = crud.user_preferences_from_db(current_user)
 
-    # All activities for this trip that are unscheduled (day_id is null)
-    unscheduled = [
-        a for a in crud.get_activities_for_trip(db, trip_id) if a.day_id is None
-    ]
+    all_activities = crud.get_activities_for_trip(db, trip_id)
+    unscheduled = [a for a in all_activities if a.day_id is None]
+    scheduled = [a for a in all_activities if a.day_id is not None]
     days = (
         db.query(models.Day)
         .filter(models.Day.trip_id == trip_id)
@@ -83,7 +215,12 @@ def arrange_trip(
     if not days:
         raise HTTPException(status_code=400, detail="Trip has no days to arrange into")
 
-    return arrangement.generate_arrangements(unscheduled, days, prefs)
+    # Group existing scheduled activities by day for capacity-aware arrangement
+    existing_by_day: dict[int, list] = {}
+    for a in scheduled:
+        existing_by_day.setdefault(a.day_id, []).append(a)
+
+    return arrangement.generate_arrangements(unscheduled, days, prefs, existing_by_day)
 
 
 class ApplyArrangementRequest(BaseModel):
@@ -131,3 +268,33 @@ def apply_arrangement(
         db.bulk_update_mappings(models.Activity, mappings)
     db.commit()
     return {"status": "ok", "applied": len(mappings)}
+
+
+class FeedbackRequest(BaseModel):
+    place_id: int | None = None
+    signal: str  # added|skipped|scheduled|deleted|must_do
+
+
+@router.post("/trips/{trip_id}/feedback")
+def record_feedback(
+    trip_id: int,
+    req: FeedbackRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Record implicit/explicit feedback on a recommendation for model retraining."""
+    verify_trip_access(db, trip_id, current_user)
+
+    valid_signals = {"added", "skipped", "scheduled", "deleted", "must_do"}
+    if req.signal not in valid_signals:
+        raise HTTPException(status_code=400, detail=f"Invalid signal: {req.signal}")
+
+    feedback = models.RecommendationFeedback(
+        user_id=current_user.id,
+        place_id=req.place_id,
+        trip_id=trip_id,
+        signal=req.signal,
+    )
+    db.add(feedback)
+    db.commit()
+    return {"status": "ok"}

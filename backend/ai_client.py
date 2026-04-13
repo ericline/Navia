@@ -91,10 +91,11 @@ def recommend_activities(
         return []
 
     prompt = f"""Recommend 10 diverse activities for a {trip_days}-day trip to {destination}.
+All activities MUST be located within {destination}. Do not suggest activities in other cities or regions.
 
 Preferences: likes={prefs.get('likes', [])}, dislikes={prefs.get('dislikes', [])}, budget/activity=${prefs.get('max_activity_budget', 100)}, walking={prefs.get('max_walking_km', 2)}km, pace={prefs.get('pace', 'balanced')}, dietary={prefs.get('dietary', [])}
 
-Return ONLY a JSON array. Each item: name (string), category (food|cafe|bar|museum|park|beach|shopping|nightlife|worship|wellness|transport|hotel|entertainment|landmark|other), address (real address or neighborhood), est_duration_minutes (int), cost_estimate (float, USD), energy_level (low|medium|high), must_do (bool), notes (one sentence tied to preferences)."""
+Return ONLY a JSON array. Each item: name (string), category (food|cafe|bar|museum|park|beach|shopping|nightlife|worship|wellness|transport|hotel|entertainment|landmark|other), address (specific real street address in {destination}), est_duration_minutes (int), cost_estimate (float, USD), energy_level (low|medium|high), must_do (bool), notes (one sentence tied to preferences)."""
 
     try:
         response = client.messages.create(

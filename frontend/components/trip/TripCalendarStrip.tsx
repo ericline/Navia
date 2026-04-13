@@ -1,12 +1,30 @@
 /** TripCalendarStrip - Week-paginated day selector with drag-and-drop activity reordering via @dnd-kit. */
 "use client";
 
+import { useState } from "react";
 import { Day, Activity } from "@/lib/api";
 import { getTodayStr } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ConstellationPath from "@/components/constellation/ConstellationPath";
 import DayColumn from "./DayColumn";
-import { DndContext, closestCenter, DragEndEvent } from "@dnd-kit/core";
+import ActivityCard from "./ActivityCard";
+import { DndContext, DragOverlay, pointerWithin, DragEndEvent, DragStartEvent, DragOverEvent } from "@dnd-kit/core";
+import type { Modifier } from "@dnd-kit/core";
+
+/** Snap the DragOverlay center to the pointer so it doesn't drift right of the cursor. */
+const snapCenterToCursor: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
+  if (activatorEvent && draggingNodeRect) {
+    const e = activatorEvent as PointerEvent;
+    if (typeof e.clientX === "number") {
+      return {
+        ...transform,
+        x: transform.x + (e.clientX - draggingNodeRect.left - draggingNodeRect.width / 2),
+        y: transform.y + (e.clientY - draggingNodeRect.top - draggingNodeRect.height / 2),
+      };
+    }
+  }
+  return transform;
+};
 
 interface TripCalendarStripProps {
   days: Day[];
@@ -19,9 +37,31 @@ interface TripCalendarStripProps {
   tripName?: string;
   onViewDayMap?: (dayId: number) => void;
   onReorderActivities?: (dayId: number, orderedIds: number[]) => void;
+  onMoveActivity?: (activityId: number, toDayId: number) => void;
 }
 
-const MAX_VISIBLE = 7;
+const MAX_VISIBLE = 14;
+
+/** Find which day an activity belongs to */
+function findDayForActivity(
+  activityId: number,
+  activitiesByDay: Record<number, Activity[]>
+): number | null {
+  for (const [dayId, acts] of Object.entries(activitiesByDay)) {
+    if (acts.some((a) => a.id === activityId)) return Number(dayId);
+  }
+  return null;
+}
+
+/** Extract a day ID from a droppable/sortable ID (either "day-123" or an activity number) */
+function resolveDayId(
+  overId: string | number,
+  activitiesByDay: Record<number, Activity[]>
+): number | null {
+  const str = String(overId);
+  if (str.startsWith("day-")) return Number(str.slice(4));
+  return findDayForActivity(Number(overId), activitiesByDay);
+}
 
 export default function TripCalendarStrip({
   days,
@@ -34,6 +74,7 @@ export default function TripCalendarStrip({
   tripName,
   onViewDayMap,
   onReorderActivities,
+  onMoveActivity,
 }: TripCalendarStripProps) {
   const totalDays = days.length;
   const visibleCount = Math.min(MAX_VISIBLE, totalDays - weekOffset);
@@ -44,11 +85,41 @@ export default function TripCalendarStrip({
 
   const visibleDays = days.slice(weekOffset, weekOffset + visibleCount);
 
+  const [activeActivity, setActiveActivity] = useState<Activity | null>(null);
+  const [overDayId, setOverDayId] = useState<number | null>(null);
+
+  function handleDragStart(event: DragStartEvent) {
+    const id = Number(event.active.id);
+    for (const acts of Object.values(activitiesByDay)) {
+      const found = acts.find((a) => a.id === id);
+      if (found) { setActiveActivity(found); return; }
+    }
+  }
+
+  function handleDragOver(event: DragOverEvent) {
+    const { over } = event;
+    if (!over) { setOverDayId(null); return; }
+    setOverDayId(resolveDayId(over.id, activitiesByDay));
+  }
+
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id || !onReorderActivities) return;
+    setActiveActivity(null);
+    setOverDayId(null);
+    if (!over) return;
 
-    // Find which day both activities belong to
+    const activeId = Number(active.id);
+    const sourceDayId = findDayForActivity(activeId, activitiesByDay);
+    const targetDayId = resolveDayId(over.id, activitiesByDay);
+
+    // Cross-day move
+    if (sourceDayId && targetDayId && sourceDayId !== targetDayId && onMoveActivity) {
+      onMoveActivity(activeId, targetDayId);
+      return;
+    }
+
+    // Same-day reorder
+    if (!onReorderActivities || active.id === over.id) return;
     for (const day of days) {
       const dayActivities = activitiesByDay[day.id] ?? [];
       const ids = dayActivities.map((a) => a.id);
@@ -110,10 +181,20 @@ export default function TripCalendarStrip({
       />
 
       {/* Day columns grid */}
-      <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 scrollbar-thin">
+      <DndContext
+        collisionDetection={pointerWithin}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+      >
+        <div className={`grid gap-3 grid-cols-2 sm:grid-cols-3 ${
+          visibleCount <= 4 ? "md:grid-cols-4" :
+          visibleCount <= 5 ? "md:grid-cols-5" :
+          visibleCount <= 6 ? "md:grid-cols-6" :
+          "md:grid-cols-7"
+        }`}>
           {visibleDays.map((day) => (
-            <div key={day.id} className="flex-1 min-w-[160px] sm:min-w-[180px]">
+            <div key={day.id}>
               <DayColumn
                 day={day}
                 activities={activitiesByDay[day.id] ?? []}
@@ -122,10 +203,22 @@ export default function TripCalendarStrip({
                 onEditActivity={onEditActivity}
                 onDeleteActivity={onDeleteActivity}
                 onViewMap={onViewDayMap}
+                isDropTarget={overDayId === day.id && findDayForActivity(activeActivity?.id ?? 0, activitiesByDay) !== day.id}
               />
             </div>
           ))}
         </div>
+        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
+          {activeActivity && (
+            <div className="w-44 opacity-90 rotate-2 scale-105">
+              <ActivityCard
+                activity={activeActivity}
+                onEdit={() => {}}
+                onDelete={() => {}}
+              />
+            </div>
+          )}
+        </DragOverlay>
       </DndContext>
     </section>
   );

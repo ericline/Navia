@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Sparkles, Loader2 } from "lucide-react";
+import { X, Sparkles, Loader2, Star, CheckCircle } from "lucide-react";
 import {
   RecommendedActivity,
   fetchRecommendations,
@@ -86,6 +86,8 @@ export default function RecommendationModal({
           name: r.name,
           category: r.category,
           address: r.address,
+          lat: r.lat ?? null,
+          lng: r.lng ?? null,
           est_duration_minutes: r.est_duration_minutes,
           cost_estimate: r.cost_estimate,
           energy_level: r.energy_level,
@@ -112,7 +114,7 @@ export default function RecommendationModal({
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-blue" />
             <h2 className="text-base font-semibold text-black/80">
-              AI activity suggestions
+              Recommended activities
             </h2>
           </div>
           <button
@@ -191,6 +193,9 @@ export default function RecommendationModal({
                             <span className="text-sm font-semibold text-black/85">
                               {r.name}
                             </span>
+                            {r.verified && (
+                              <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                            )}
                             {r.category && (
                               <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-blue/10 text-blue/80">
                                 {r.category}
@@ -208,14 +213,20 @@ export default function RecommendationModal({
                             </p>
                           )}
                           <div className="flex items-center gap-3 mt-1 text-[11px] text-black/40">
-                            {r.est_duration_minutes != null && (
-                              <span>{r.est_duration_minutes} min</span>
+                            {r.rating != null && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                                {r.rating.toFixed(1)}
+                                {r.rating_count != null && (
+                                  <span className="text-black/30">({r.rating_count.toLocaleString()})</span>
+                                )}
+                              </span>
                             )}
                             {r.cost_estimate != null && (
                               <span>~${r.cost_estimate}</span>
                             )}
-                            {r.energy_level && (
-                              <span className="capitalize">{r.energy_level} energy</span>
+                            {r.est_duration_minutes != null && (
+                              <span>{r.est_duration_minutes} min</span>
                             )}
                           </div>
                           {r.notes && (

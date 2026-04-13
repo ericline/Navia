@@ -41,6 +41,7 @@ export default function TripDetailPage() {
     handleDeleteActivity,
     handleReorderActivities,
     handleScheduleActivity,
+    handleMoveActivityToDay,
   } = useTripData(tripId);
 
   // Calendar strip week pagination
@@ -202,6 +203,7 @@ export default function TripDetailPage() {
           tripName={trip.name}
           onViewDayMap={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
           onReorderActivities={handleReorderActivities}
+          onMoveActivity={handleMoveActivityToDay}
         />
       ) : (
         <section className="glass bg-warmSurface rounded-2xl p-8 text-center">

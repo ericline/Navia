@@ -33,47 +33,48 @@ export default function ActivityCard({
       {/* Left accent bar */}
       <div className={`w-[3px] shrink-0 ${accentColor}`} />
 
-      <div className="flex-1 px-2.5 py-2 min-w-0">
-        <div className="flex items-start justify-between gap-1">
-          <span className="text-xs font-medium text-black/80 leading-tight truncate">
+      <div className="flex-1 px-3 py-2.5 min-w-0">
+        <div>
+          <div className="min-w-0">
             {formatTime(activity.start_time) && (
-              <span className="text-black/40 mr-1">{formatTime(activity.start_time)}</span>
+              <span className="text-[11px] text-black/40 leading-none">{formatTime(activity.start_time)}</span>
             )}
-            {activity.name}
-          </span>
-          <div className="flex items-center gap-0.5 shrink-0">
-            {activity.must_do && (
-              <Star className="h-3 w-3 text-pink fill-pink mt-0.5" />
-            )}
-            {/* Edit / Delete — visible on hover */}
-            {(onEdit || onDelete) && (
-              <div className="hidden group-hover:flex items-center gap-0.5 ml-1">
-                {onEdit && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(activity);
-                    }}
-                    className="rounded p-0.5 hover:bg-black/[0.06] text-black/25 hover:text-blue/70 transition"
-                  >
-                    <Pencil className="h-2.5 w-2.5" />
-                  </button>
-                )}
-                {onDelete && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(activity.id);
-                    }}
-                    className="rounded p-0.5 hover:bg-red-50 text-black/25 hover:text-red-400 transition"
-                  >
-                    <Trash2 className="h-2.5 w-2.5" />
-                  </button>
-                )}
-              </div>
-            )}
+            <p className="text-[13px] font-medium text-black/80 leading-snug pr-6">
+              {activity.name}
+              {activity.must_do && (
+                <Star className="inline h-3 w-3 text-pink fill-pink ml-1 -mt-0.5" />
+              )}
+            </p>
           </div>
         </div>
+
+        {/* Edit / Delete — absolutely positioned to avoid layout shift */}
+        {(onEdit || onDelete) && (
+          <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition bg-white/80 rounded-lg px-0.5 py-0.5">
+            {onEdit && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(activity);
+                }}
+                className="rounded p-0.5 hover:bg-black/[0.06] text-black/25 hover:text-blue/70 transition"
+              >
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(activity.id);
+                }}
+                className="rounded p-0.5 hover:bg-red-50 text-black/25 hover:text-red-400 transition"
+              >
+                <Trash2 className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {activity.category && (
           <span className="text-[10px] text-black/35 capitalize">
@@ -82,7 +83,7 @@ export default function ActivityCard({
         )}
 
         {activity.address && (
-          <p className="text-[10px] text-black/30 truncate mt-0.5">
+          <p className="text-[11px] text-black/30 leading-snug mt-0.5">
             {activity.address}
           </p>
         )}

@@ -1,14 +1,17 @@
-"""SQLAlchemy ORM models for users, trips, days, activities, and collaborators."""
+"""SQLAlchemy ORM models for users, trips, days, activities, collaborators, places, and feedback."""
 from sqlalchemy import (
     Column,
     Integer,
     String,
     Date,
     Time,
+    DateTime,
     ForeignKey,
     Boolean,
     Float,
+    Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import relationship
 
@@ -139,3 +142,49 @@ class Activity(Base):
     # Relationships
     trip = relationship("Trip", back_populates="activities")
     day = relationship("Day", back_populates="activities")
+
+
+class Place(Base):
+    """A real-world place from Google Places API, used by the custom recommendation model.
+
+    Embeddings are stored as JSON-serialized float arrays (Text column) so the
+    schema works on both SQLite (dev) and PostgreSQL (prod).  On PostgreSQL the
+    retrieval layer can optionally use pgvector for ANN search; on SQLite we fall
+    back to in-memory cosine similarity via numpy.
+    """
+    __tablename__ = "places"
+
+    id = Column(Integer, primary_key=True, index=True)
+    google_place_id = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False, index=True)
+    destination = Column(String, nullable=False, index=True)
+    category = Column(String, nullable=False, index=True)
+    address = Column(String, nullable=True)
+    lat = Column(Float, nullable=False)
+    lng = Column(Float, nullable=False)
+    rating = Column(Float, nullable=True)
+    rating_count = Column(Integer, nullable=True)
+    price_level = Column(Integer, nullable=True)          # 0-4
+    description = Column(Text, nullable=True)
+    photo_reference = Column(String, nullable=True)       # Google photo reference
+    types_raw = Column(Text, nullable=True)               # JSON array of raw Google types
+    embedding = Column(Text, nullable=True)               # JSON-serialized 384-d float array
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class RecommendationFeedback(Base):
+    """Tracks implicit user signals on recommended places for model retraining.
+
+    Signals: 'added' (user added rec), 'skipped' (shown but not added),
+    'scheduled' (assigned to a day), 'deleted' (removed after adding),
+    'must_do' (marked as must-do).
+    """
+    __tablename__ = "recommendation_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    place_id = Column(Integer, ForeignKey("places.id", ondelete="CASCADE"), nullable=True, index=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True)
+    signal = Column(String, nullable=False)               # added|skipped|scheduled|deleted|must_do
+    created_at = Column(DateTime, server_default=func.now())

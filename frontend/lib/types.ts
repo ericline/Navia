@@ -159,11 +159,20 @@ export interface RecommendedActivity {
   name: string;
   category?: string;
   address?: string;
+  lat?: number | null;
+  lng?: number | null;
   est_duration_minutes?: number;
   cost_estimate?: number;
   energy_level?: "low" | "medium" | "high";
   must_do?: boolean;
   notes?: string;
+  // ML pipeline fields (from Google Places data)
+  rating?: number | null;
+  rating_count?: number | null;
+  price_level?: number | null;
+  photo_reference?: string | null;
+  google_place_id?: string | null;
+  verified?: boolean;
 }
 
 export interface RecommendationResponse {

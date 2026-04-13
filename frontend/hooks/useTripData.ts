@@ -172,6 +172,20 @@ export function useTripData(tripId: number) {
     }
   }
 
+  async function handleMoveActivityToDay(activityId: number, toDayId: number) {
+    // Optimistic update: move the activity in local state
+    setActivities((prev) => prev.map((a) =>
+      a.id === activityId ? { ...a, day_id: toDayId, position: 999 } : a
+    ));
+    try {
+      await apiUpdateActivity(activityId, { day_id: toDayId });
+      await refreshActivities();
+    } catch (err) {
+      console.error(err);
+      await refreshActivities(); // rollback
+    }
+  }
+
   return {
     trip,
     days,
@@ -188,5 +202,6 @@ export function useTripData(tripId: number) {
     handleDeleteActivity,
     handleReorderActivities,
     handleScheduleActivity,
+    handleMoveActivityToDay,
   };
 }

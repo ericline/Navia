@@ -3,9 +3,10 @@
 
 import { Day, Activity } from "@/lib/api";
 import { getCategoryKey, CATEGORY_NEBULA_COLORS, type CategoryKey } from "@/lib/utils";
-import { Plus, Clock, DollarSign, Hash, MapPin, GripVertical } from "lucide-react";
+import { Plus, Clock, DollarSign, MapPin, GripVertical } from "lucide-react";
 import ActivityCard from "./ActivityCard";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
 interface DayColumnProps {
@@ -16,6 +17,7 @@ interface DayColumnProps {
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (activityId: number) => void;
   onViewMap?: (dayId: number) => void;
+  isDropTarget?: boolean;
 }
 
 function getNebulaColor(activities: Activity[]): string {
@@ -84,7 +86,9 @@ export default function DayColumn({
   onEditActivity,
   onDeleteActivity,
   onViewMap,
+  isDropTarget,
 }: DayColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: `day-${day.id}` });
   const nebulaColor = getNebulaColor(activities);
   const totalMinutes = activities.reduce(
     (sum, a) => sum + (a.est_duration_minutes || 0),
@@ -95,15 +99,19 @@ export default function DayColumn({
     0
   );
   const totalHours = (totalMinutes / 60).toFixed(1);
+  const showDropIndicator = isOver || isDropTarget;
 
   return (
     <div
-      className={`flex flex-col min-w-[160px] sm:min-w-[180px] snap-start rounded-2xl border transition-all ${
-        isToday
-          ? "border-blue/30 shadow-[0_0_16px_rgb(var(--blue)/0.12)]"
-          : "border-black/5"
+      ref={setNodeRef}
+      className={`flex flex-col rounded-2xl border-2 transition-all ${
+        showDropIndicator
+          ? "border-blue/50 bg-blue/5 shadow-[0_0_20px_rgb(var(--blue)/0.15)]"
+          : isToday
+            ? "border-blue/30 shadow-[0_0_16px_rgb(var(--blue)/0.12)]"
+            : "border-black/5"
       }`}
-      style={{ background: "rgb(var(--warmSurface) / 0.6)" }}
+      style={showDropIndicator ? undefined : { background: "rgb(var(--warmSurface) / 0.6)" }}
     >
       {/* Header with nebula glow */}
       <div className="relative px-3 pt-3 pb-2 rounded-t-2xl overflow-hidden">
@@ -145,11 +153,7 @@ export default function DayColumn({
                 </span>
                 <span className="inline-flex items-center gap-0.5 text-[9px] text-lightBlue bg-lightBlue/10 rounded-full px-1.5 py-0.5">
                   <DollarSign className="h-2 w-2" />
-                  {totalCost.toFixed(0)}
-                </span>
-                <span className="inline-flex items-center gap-0.5 text-[9px] text-lightBlue bg-lightBlue/10 rounded-full px-1.5 py-0.5">
-                  <Hash className="h-2 w-2" />
-                  {activities.length}
+                  ${totalCost.toFixed(0)}
                 </span>
                 {onViewMap && (
                   <button
@@ -173,7 +177,7 @@ export default function DayColumn({
       </div>
 
       {/* Activity cards */}
-      <div className="flex-1 px-2 pb-2 space-y-1.5 overflow-y-auto scrollbar-thin max-h-[340px]">
+      <div className="flex-1 px-2 pb-2 space-y-1.5">
         <SortableContext items={activities.map((a) => a.id)} strategy={verticalListSortingStrategy}>
           {activities.map((act) => (
             <SortableActivityCard

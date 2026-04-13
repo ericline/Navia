@@ -48,22 +48,25 @@ export default function DatePicker({
     String(today.getDate()).padStart(2, "0"),
   ].join("-");
 
-  const [viewYear, setViewYear] = useState(() =>
-    value ? parseInt(value.split("-")[0]) : today.getFullYear()
-  );
-  const [viewMonth, setViewMonth] = useState(() =>
-    value ? parseInt(value.split("-")[1]) - 1 : today.getMonth()
-  );
+  const [viewYear, setViewYear] = useState(() => {
+    const ref = value || minDate;
+    return ref ? parseInt(ref.split("-")[0]) : today.getFullYear();
+  });
+  const [viewMonth, setViewMonth] = useState(() => {
+    const ref = value || minDate;
+    return ref ? parseInt(ref.split("-")[1]) - 1 : today.getMonth();
+  });
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Sync view to value when it changes externally
+  // Sync view to value (or minDate when no value) when it changes externally
   useEffect(() => {
-    if (value) {
-      setViewYear(parseInt(value.split("-")[0]));
-      setViewMonth(parseInt(value.split("-")[1]) - 1);
+    const ref = value || minDate;
+    if (ref) {
+      setViewYear(parseInt(ref.split("-")[0]));
+      setViewMonth(parseInt(ref.split("-")[1]) - 1);
     }
-  }, [value]);
+  }, [value, minDate]);
 
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
