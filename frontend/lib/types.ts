@@ -73,8 +73,9 @@ export interface DayUpdate {
 
 export interface Activity {
   id: number;
-  trip_id: number;
+  trip_id: number | null;
   day_id?: number | null;
+  user_id?: number | null;
 
   name: string;
   category?: string | null;
@@ -94,7 +95,7 @@ export interface Activity {
 }
 
 export interface ActivityCreate {
-  trip_id: number;
+  trip_id: number | null;
   day_id?: number | null;
 
   name: string;
@@ -114,6 +115,7 @@ export interface ActivityCreate {
 }
 
 export interface ActivityUpdate {
+  trip_id?: number | null;
   day_id?: number | null;
   name?: string;
   category?: string;
@@ -127,6 +129,7 @@ export interface ActivityUpdate {
   start_time?: string | null;
   notes?: string | null;
   unschedule?: boolean;
+  to_bucket?: boolean;
 }
 
 // ---------- User ----------
@@ -229,10 +232,4 @@ export interface Collaborator {
 }
 
 // ---------- Bucket List ----------
-
-export interface BucketItem {
-  id: string;
-  name: string;
-  location: string;
-  notes: string;
-}
+// Bucket list items are just Activities with trip_id=null. Use `Activity` / `ActivityCreate`.

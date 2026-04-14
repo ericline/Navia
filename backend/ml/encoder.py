@@ -21,6 +21,7 @@ import numpy as np
 from sqlalchemy.orm import Session
 
 import models
+from data.destination_normalizer import normalize_destination
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def get_encoder():
     if _encoder is None:
         from sentence_transformers import SentenceTransformer
         logger.info("Loading sentence-transformer model all-MiniLM-L6-v2...")
-        _encoder = SentenceTransformer("all-MiniLM-L6-v2")
+        _encoder = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
         logger.info("Encoder loaded.")
     return _encoder
 
@@ -77,10 +78,13 @@ def build_query_embedding(destination: str, prefs, context: dict | None = None) 
     if context:
         has = context.get("has") or []
         avoid = context.get("avoid") or []
+        liked = context.get("liked") or []
         if has:
             query += f" Already planned: {', '.join(has[:20])}."
         if avoid:
             query += f" Not interested in: {', '.join(avoid[:20])}."
+        if liked:
+            query += f" Previously enjoyed: {', '.join(liked[:20])}."
     return encode_text(query)
 
 
@@ -108,6 +112,7 @@ def vector_search(
 
     Returns list of (Place, similarity_score) sorted by descending similarity.
     """
+    destination = normalize_destination(destination)
     if db.bind.dialect.name == "postgresql":
         return _vector_search_pg(db, destination, query_embedding, limit)
     return _vector_search_inmemory(db, destination, query_embedding, limit)

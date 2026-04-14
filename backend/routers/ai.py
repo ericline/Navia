@@ -22,7 +22,14 @@ import arrangement
 import crud
 import models
 from auth import get_current_user, get_db, verify_trip_access
-from data.ingest_places import ingest_destination, get_place_count
+from data.destination_normalizer import normalize_destination
+from data.ingest_places import (
+    ingest_destination,
+    ingest_interest,
+    get_place_count,
+    count_places_matching,
+)
+from data.category_mapping import get_interest_hint
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +128,7 @@ def _place_to_rec_dict(place: models.Place) -> dict:
         "est_duration_minutes": 90,  # default estimate
         "cost_estimate": (place.price_level or 2) * 25.0,  # rough mapping
         "energy_level": "medium",
-        "must_do": (place.rating or 0) >= 4.5 and (place.rating_count or 0) > 500,
+        "must_do": False,  # AI suggestions are never auto-marked Must-Do — user must opt in after scheduling
         "notes": place.description or "",
         "rating": place.rating,
         "rating_count": place.rating_count,
@@ -142,25 +149,49 @@ def _ml_recommend(
     with a short summary of what's already planned + what was rejected.
     """
     from ml.encoder import build_query_embedding, vector_search
-    from ml.scorer import score_candidates, diversity_rerank
+    from ml.scorer import score_candidates, diversity_rerank, interest_match
+
+    destination = normalize_destination(trip.destination)
 
     # Step 1: Ensure enough places exist for this destination
-    count = get_place_count(db, trip.destination)
+    count = get_place_count(db, destination)
     if count < _MIN_PLACES_THRESHOLD:
-        logger.info("Only %d places for %s — ingesting from Google Places", count, trip.destination)
-        ingest_destination(trip.destination, db)
-        count = get_place_count(db, trip.destination)
+        logger.info("Only %d places for %s — ingesting from Google Places", count, destination)
+        ingest_destination(destination, db)
+        count = get_place_count(db, destination)
 
     if count < 5:
-        logger.warning("Insufficient places (%d) for %s after ingestion", count, trip.destination)
+        logger.warning("Insufficient places (%d) for %s after ingestion", count, destination)
         return []
 
-    # Step 2: Build context from existing trip activities + prior feedback
+    # Step 1b: Interest-driven on-demand ingest. For any declared interest that
+    # maps to a known search hint AND has <5 matching places already, pull a
+    # targeted query from Google Places. Capped per call to bound API cost;
+    # results are cached in the DB forever.
+    interests = getattr(prefs, "interests", None) or []
+    ingests_done = 0
+    for interest in interests:
+        if ingests_done >= 3:
+            break
+        hint = get_interest_hint(interest)
+        if not hint:
+            continue
+        if count_places_matching(db, destination, interest) >= 5:
+            continue
+        try:
+            ingest_interest(destination, interest, db)
+            ingests_done += 1
+        except Exception as e:
+            logger.warning("Interest ingest failed for %s/%s: %s", destination, interest, e)
+
+    # Step 2: Build context from existing trip activities + prior feedback.
+    # Trip-scoped feedback drives the HARD filter (exclude_ids).
+    # Profile-scoped feedback drives SOFT nudges (embedding + post-score multipliers).
     existing = crud.get_activities_for_trip(db, trip.id)
     existing_gpids = {a.google_place_id for a in existing if a.google_place_id}
     has_names = [a.name for a in existing if a.name][:20]
 
-    feedback_rows = (
+    trip_feedback = (
         db.query(models.RecommendationFeedback)
         .filter(
             models.RecommendationFeedback.user_id == user.id,
@@ -170,7 +201,7 @@ def _ml_recommend(
     )
     skipped_place_ids: set[int] = set()
     added_place_ids: set[int] = set()
-    for fb in feedback_rows:
+    for fb in trip_feedback:
         if fb.place_id is None:
             continue
         if fb.signal == "skipped":
@@ -178,26 +209,63 @@ def _ml_recommend(
         elif fb.signal in ("added", "scheduled", "must_do"):
             added_place_ids.add(fb.place_id)
 
-    # Skipped-place names (for embedding negative nudge)
+    # Profile-scoped feedback: every trip, all time. Used only as soft signal.
+    profile_feedback = (
+        db.query(models.RecommendationFeedback)
+        .filter(models.RecommendationFeedback.user_id == user.id)
+        .order_by(models.RecommendationFeedback.id.desc())
+        .all()
+    )
+    profile_skipped_ids: set[int] = set()
+    profile_added_ids: list[int] = []  # preserves recency order
+    for fb in profile_feedback:
+        if fb.place_id is None:
+            continue
+        if fb.signal == "skipped":
+            profile_skipped_ids.add(fb.place_id)
+        elif fb.signal in ("added", "scheduled", "must_do"):
+            if fb.place_id not in profile_added_ids:
+                profile_added_ids.append(fb.place_id)
+
+    # Resolve names + categories for soft signals
     avoid_names: list[str] = []
-    if skipped_place_ids:
-        skipped_places = (
+    if profile_skipped_ids:
+        rows = (
             db.query(models.Place.name)
-            .filter(models.Place.id.in_(skipped_place_ids))
+            .filter(models.Place.id.in_(profile_skipped_ids))
             .all()
         )
-        avoid_names = [p.name for p in skipped_places][:20]
+        avoid_names = [r.name for r in rows][:20]
 
-    context = {"has": has_names, "avoid": avoid_names} if (has_names or avoid_names) else None
+    liked_names: list[str] = []
+    profile_added_categories: dict[str, int] = {}
+    if profile_added_ids:
+        # Preserve recency: fetch with IN, then reorder by profile_added_ids.
+        added_rows = (
+            db.query(models.Place.id, models.Place.name, models.Place.category)
+            .filter(models.Place.id.in_(profile_added_ids))
+            .all()
+        )
+        by_id = {r.id: r for r in added_rows}
+        ordered = [by_id[pid] for pid in profile_added_ids if pid in by_id]
+        liked_names = [r.name for r in ordered if r.name][:20]
+        for r in ordered:
+            if r.category:
+                profile_added_categories[r.category] = profile_added_categories.get(r.category, 0) + 1
+
+    context: dict | None = None
+    if has_names or avoid_names or liked_names:
+        context = {"has": has_names, "avoid": avoid_names, "liked": liked_names}
 
     # Step 3: Retrieve candidates via embedding similarity — fetch extra to survive filtering
-    query_emb = build_query_embedding(trip.destination, prefs, context=context)
-    candidates = vector_search(db, trip.destination, query_emb, limit=80)
+    query_emb = build_query_embedding(destination, prefs, context=context)
+    candidates = vector_search(db, destination, query_emb, limit=80)
 
     if not candidates:
         return []
 
-    # Step 4: Filter out existing + skipped + already-added places
+    # Step 4: Filter out existing + trip-skipped + already-added places.
+    # Note: profile-skipped IDs are NOT a hard filter — just a soft nudge.
     exclude_ids = skipped_place_ids | added_place_ids
     filtered = [
         (p, s) for (p, s) in candidates
@@ -209,8 +277,22 @@ def _ml_recommend(
     # Step 5: Score and rank with TF model (or heuristic fallback)
     scored = score_candidates(prefs, filtered)
 
+    # Step 5b: Post-score multipliers for interest match + category affinity.
+    # Applied outside the 25-dim TF model so the saved model stays compatible.
+    total_added = sum(profile_added_categories.values())
+    boosted: list[tuple] = []
+    for place, sim, score in scored:
+        mult = 1.0
+        if interest_match(prefs, place) > 0:
+            mult *= 1.3
+        if total_added > 0 and place.category:
+            affinity = profile_added_categories.get(place.category, 0) / total_added
+            mult *= 1.0 + 0.1 * affinity
+        boosted.append((place, sim, score * mult))
+    boosted.sort(key=lambda x: x[2], reverse=True)
+
     # Step 6: Diversity re-ranking via MMR
-    top_places = diversity_rerank(scored, top_k=10, lambda_=0.7)
+    top_places = diversity_rerank(boosted, top_k=10, lambda_=0.7)
 
     return [_place_to_rec_dict(p) for p in top_places]
 
@@ -256,13 +338,16 @@ def arrange_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Generate up to 5 deterministic arrangement strategies for unscheduled activities."""
+    """Generate up to 5 deterministic arrangement strategies.
+
+    Must-Do activities with a start_time are treated as immovable anchors — they stay
+    on their day and time. Every other activity (unscheduled OR scheduled-but-not-must-do)
+    is thrown into the movable pool and reassigned.
+    """
     trip = verify_trip_access(db, trip_id, current_user)
     prefs = crud.user_preferences_from_db(current_user)
 
     all_activities = crud.get_activities_for_trip(db, trip_id)
-    unscheduled = [a for a in all_activities if a.day_id is None]
-    scheduled = [a for a in all_activities if a.day_id is not None]
     days = (
         db.query(models.Day)
         .filter(models.Day.trip_id == trip_id)
@@ -270,17 +355,40 @@ def arrange_trip(
         .all()
     )
 
-    if not unscheduled:
-        raise HTTPException(status_code=400, detail="No unscheduled activities to arrange")
     if not days:
         raise HTTPException(status_code=400, detail="Trip has no days to arrange into")
 
-    # Group existing scheduled activities by day for capacity-aware arrangement
-    existing_by_day: dict[int, list] = {}
-    for a in scheduled:
-        existing_by_day.setdefault(a.day_id, []).append(a)
+    # Must-Do + scheduled + has start_time → locked anchor.
+    locked = [
+        a for a in all_activities
+        if a.must_do and a.day_id is not None and a.start_time is not None
+    ]
+    movable = [a for a in all_activities if a not in locked]
 
-    return arrangement.generate_arrangements(unscheduled, days, prefs, existing_by_day)
+    if not movable:
+        raise HTTPException(status_code=400, detail="No activities available to arrange")
+
+    locked_by_day: dict[int, list] = {}
+    for a in locked:
+        locked_by_day.setdefault(a.day_id, []).append(a)
+
+    arrangements = arrangement.generate_arrangements(movable, days, prefs, locked_by_day)
+
+    # Re-emit locked anchors in every arrangement's assignments list so the
+    # client can apply a single batch update without losing them.
+    for arr in arrangements:
+        existing_ids = {asn["activity_id"] for asn in arr["assignments"]}
+        for a in locked:
+            if a.id in existing_ids:
+                continue
+            arr["assignments"].append({
+                "activity_id": a.id,
+                "day_id": a.day_id,
+                "position": a.position or 0,
+                "start_time": a.start_time.strftime("%H:%M:%S") if a.start_time else None,
+            })
+
+    return arrangements
 
 
 class ApplyArrangementRequest(BaseModel):

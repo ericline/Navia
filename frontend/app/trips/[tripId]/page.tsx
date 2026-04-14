@@ -5,20 +5,18 @@
  */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Share2, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Plus, Sparkles } from "lucide-react";
 import type { Activity } from "@/lib/types";
-import { fetchActivitiesForTrip } from "@/lib/api";
 import { TripHeader, TripCalendarStrip, UnscheduledDock, AddActivityPanel, CollaboratorPanel, RecommendationModal, ArrangementBrowser } from "@/components/trip";
-import { TripConstellation } from "@/components/constellation";
+import { ConstellationRevealOverlay } from "@/components/constellation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTripData } from "@/hooks/useTripData";
 
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
 
   const tripIdParam = params?.tripId;
@@ -43,6 +41,7 @@ export default function TripDetailPage() {
     handleScheduleActivity,
     handleMoveActivityToDay,
     handleUpdateDay,
+    handleToggleMustDo,
   } = useTripData(tripId);
 
   // Calendar strip week pagination
@@ -55,27 +54,22 @@ export default function TripDetailPage() {
 
   // Constellation reveal overlay
   const [showReveal, setShowReveal] = useState(false);
-  const [revealDone, setRevealDone] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
 
   // Collaborator panel
   const [collabOpen, setCollabOpen] = useState(false);
 
-  // AI modals
-  const [recommendOpen, setRecommendOpen] = useState(false);
+  // AI modals. Initialize recommendOpen from ?recommend=1 synchronously so
+  // the deep-link entry never goes through a false→true toggle. The URL flag
+  // is intentionally left in place; React's state is the source of truth for
+  // "modal open", so touching the URL would only risk triggering a re-render.
+  const [recommendOpen, setRecommendOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("recommend") === "1";
+  });
   const [arrangeOpen, setArrangeOpen] = useState(false);
-
-  useEffect(() => {
-    if (searchParams?.get("recommend") === "1") {
-      setRecommendOpen(true);
-    }
-  }, [searchParams]);
 
   function closeRecommendations() {
     setRecommendOpen(false);
-    if (searchParams?.get("recommend") === "1") {
-      router.replace(`/trips/${tripId}`);
-    }
   }
 
   function handleOpenPanel(dayId?: number) {
@@ -88,83 +82,6 @@ export default function TripDetailPage() {
     setEditingActivity(activity);
     setPanelDayId(null);
     setPanelOpen(true);
-  }
-
-  // Resolve CSS variable colors for PNG export of the constellation SVG
-  const COLOR_MAP: Record<string, string> = {
-    "rgb(var(--blue))": "rgb(75,134,180)",
-    "rgb(var(--lightBlue))": "rgb(149,184,209)",
-    "rgb(var(--darkBlue))": "rgb(43,65,98)",
-    "rgb(var(--pink))": "rgb(184,107,119)",
-  };
-
-  const handleShareImage = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const svgEl = document.querySelector<SVGSVGElement>(".constellation-reveal-overlay svg");
-    if (!svgEl) return;
-
-    const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
-    let svgString = new XMLSerializer().serializeToString(svgClone);
-
-    for (const [cssVar, resolved] of Object.entries(COLOR_MAP)) {
-      svgString = svgString.replaceAll(cssVar, resolved);
-    }
-
-    const viewBox = svgEl.getAttribute("viewBox")?.split(" ").map(Number) ?? [0, 0, 500, 300];
-    const padding = 40;
-    const canvasW = viewBox[2] + padding * 2;
-    const canvasH = viewBox[3] + padding * 2;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = canvasW * 2;
-    canvas.height = canvasH * 2;
-    const ctx = canvas.getContext("2d")!;
-    ctx.scale(2, 2);
-
-    ctx.fillStyle = "rgb(250, 248, 246)";
-    ctx.fillRect(0, 0, canvasW, canvasH);
-
-    const img = new Image();
-    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    await new Promise<void>((resolve) => {
-      img.onload = () => {
-        ctx.drawImage(img, padding, padding, viewBox[2], viewBox[3]);
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-      img.src = url;
-    });
-
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.font = "bold 14px system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(trip?.name ?? "", canvasW / 2, canvasH - 12);
-
-    canvas.toBlob(async (pngBlob) => {
-      if (!pngBlob) return;
-      const file = new File([pngBlob], `${trip?.name ?? "constellation"}.png`, { type: "image/png" });
-      if (navigator.canShare?.({ files: [file] })) {
-        try { await navigator.share({ files: [file] }); } catch {}
-      } else {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(pngBlob);
-        a.download = file.name;
-        a.click();
-        URL.revokeObjectURL(a.href);
-      }
-    }, "image/png");
-  }, [trip?.name]);
-
-  async function handleCopyLink(e: React.MouseEvent) {
-    e.stopPropagation();
-    const liveUrl = typeof window !== "undefined"
-      ? `${window.location.origin}/constellation/${tripId}`
-      : `/constellation/${tripId}`;
-    await navigator.clipboard.writeText(liveUrl);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   if (loading) {
@@ -188,7 +105,7 @@ export default function TripDetailPage() {
       <TripHeader
         trip={trip}
         onDelete={handleDeleteTrip}
-        onFinish={() => { setShowReveal(true); setRevealDone(false); }}
+        onFinish={() => setShowReveal(true)}
         onCollaborators={() => setCollabOpen(true)}
       />
 
@@ -201,6 +118,7 @@ export default function TripDetailPage() {
           onAddActivity={handleOpenPanel}
           onEditActivity={handleEditActivity}
           onDeleteActivity={handleDeleteActivity}
+          onToggleMustDo={handleToggleMustDo}
           tripName={trip.name}
           onViewDayMap={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
           onReorderActivities={handleReorderActivities}
@@ -233,12 +151,14 @@ export default function TripDetailPage() {
       </button>
 
       <UnscheduledDock
+        tripId={tripId}
         activities={unscheduledActivities}
         days={sortedDays}
         onEditActivity={handleEditActivity}
         onDeleteActivity={handleDeleteActivity}
         onScheduleActivity={handleScheduleActivity}
         onAutoArrange={() => setArrangeOpen(true)}
+        onActivityChanged={refreshActivities}
       />
 
       <RecommendationModal
@@ -278,56 +198,18 @@ export default function TripDetailPage() {
       />
 
       {showReveal && (
-        <div
-          className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-warmBg constellation-reveal-overlay ${revealDone ? "cursor-pointer" : ""}`}
-          onClick={() => revealDone && router.push("/")}
-        >
-          <p className="text-sm text-black/40 mb-2 tracking-wide uppercase constellation-reveal-title">
-            Your constellation
-          </p>
-          <h2 className="text-2xl font-bold text-black/80 mb-6 constellation-reveal-title">
-            {trip.name}
-          </h2>
-          <div className="w-full max-w-2xl px-8">
-            <TripConstellation
-              tripId={tripId}
-              tripName={trip.name}
-              days={sortedDays}
-              activitiesByDay={activitiesByDay}
-              destination={trip.destination}
-              size="reveal"
-              revealAnimation
-              onRevealComplete={() => setRevealDone(true)}
-              onDayClick={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
-            />
-          </div>
-          <p className="mt-8 text-xs text-black/30 constellation-reveal-title">
-            Trip saved
-          </p>
-          <div
-            className="mt-4 flex flex-col items-center gap-3 transition-opacity duration-500"
-            style={{ opacity: revealDone ? 1 : 0 }}
-          >
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleShareImage}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue/90 hover:bg-blue text-xs font-semibold text-white transition"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                Share Image
-              </button>
-              <button
-                onClick={handleCopyLink}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-black/[0.06] hover:bg-black/[0.10] text-xs text-black/50 transition"
-              >
-                {linkCopied ? "Link copied!" : "Copy Link"}
-              </button>
-            </div>
-            <p className="text-[11px] text-black/25">
-              Tap anywhere to continue
-            </p>
-          </div>
-        </div>
+        <ConstellationRevealOverlay
+          tripId={tripId}
+          tripName={trip.name}
+          days={sortedDays}
+          activitiesByDay={activitiesByDay}
+          destination={trip.destination}
+          onClose={() => {
+            setShowReveal(false);
+            router.push("/");
+          }}
+          onDayClick={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
+        />
       )}
     </main>
   );

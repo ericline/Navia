@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import type { Trip, Day, Activity } from "@/lib/types";
 import {
   fetchTrips,
@@ -164,33 +165,59 @@ export default function ProfilePage() {
     [constellationPages]
   );
 
+  const reduce = useReducedMotion();
+  const pageVariants: Variants = {
+    hidden: {},
+    show: { transition: reduce ? {} : { staggerChildren: 0.06, delayChildren: 0.05 } },
+  };
+  const sectionVariants: Variants = {
+    hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 8 },
+    show: reduce
+      ? { opacity: 1, transition: { duration: 0.15 } }
+      : { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 28 } },
+  };
+
   if (isLoading || !user) return null;
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
-      <div>
+    <motion.main
+      className="mx-auto max-w-5xl px-6 py-10 space-y-8"
+      variants={pageVariants}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={sectionVariants}>
         <h1 className="text-3xl font-bold text-black/85 tracking-tight">
           Profile
         </h1>
         <p className="text-black/45 mt-1 text-sm">
-          Settings and preferences will live here
         </p>
-      </div>
+      </motion.div>
 
-      <AccountSection />
+      <motion.div variants={sectionVariants}>
+        <AccountSection />
+      </motion.div>
 
       {constellationPages.length > 0 && (
-        <TripStats trips={allTripsForStats} totalActivities={totalActivities} totalDays={totalDays} />
+        <motion.div variants={sectionVariants}>
+          <TripStats trips={allTripsForStats} totalActivities={totalActivities} totalDays={totalDays} />
+        </motion.div>
       )}
 
-      <section className="glass bg-warmSurface rounded-2xl p-6">
+      <motion.section
+        variants={sectionVariants}
+        className="glass bg-warmSurface rounded-2xl p-6"
+      >
         <h2 className="text-sm font-semibold text-black/60 mb-4">
           Constellation Collection
         </h2>
         <ConstellationBook pages={constellationPages} />
-      </section>
+      </motion.section>
 
-      <section className="glass bg-warmSurface rounded-2xl p-6">
+      <motion.section
+        variants={sectionVariants}
+        className="glass bg-warmSurface rounded-2xl p-6"
+      >
         <h2 className="text-sm font-semibold text-black/60 mb-4">
           Places Visited
         </h2>
@@ -200,9 +227,11 @@ export default function ProfilePage() {
             Complete a past trip to see it marked on the map
           </p>
         )}
-      </section>
+      </motion.section>
 
-      <PreferencesSection />
-    </main>
+      <motion.div variants={sectionVariants}>
+        <PreferencesSection />
+      </motion.div>
+    </motion.main>
   );
 }

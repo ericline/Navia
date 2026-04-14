@@ -231,3 +231,20 @@ body {
   background: rgba(255, 255, 255, 0.08) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
+
+/* Keep the edit/delete hover menu readable on the dark dock — the universal
+   white override above would otherwise wash the icons into the card background. */
+.dock-card .activity-hover-menu {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+.dock-card .activity-hover-menu,
+.dock-card .activity-hover-menu * {
+  color: rgba(0, 0, 0, 0.7) !important;
+}
+.dock-card .activity-hover-menu button:hover {
+  color: rgb(75, 134, 180) !important;
+}
+.dock-card .activity-hover-menu button:last-child:hover {
+  color: rgb(239, 68, 68) !important;
+}

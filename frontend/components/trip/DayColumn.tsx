@@ -3,14 +3,14 @@
 
 import { useState } from "react";
 import { Day, Activity, DayUpdate } from "@/lib/api";
-import { getCategoryKey, CATEGORY_NEBULA_COLORS, type CategoryKey } from "@/lib/utils";
-import { Plus, Clock, DollarSign, MapPin, GripVertical } from "lucide-react";
+import { getCategoryKey, CATEGORY_NEBULA_COLORS, formatTime, type CategoryKey } from "@/lib/utils";
+import { Plus, Clock, DollarSign, GripVertical } from "lucide-react";
 import ActivityCard from "./ActivityCard";
 import DayWindowEditor from "./DayWindowEditor";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface DayColumnProps {
   day: Day;
@@ -19,8 +19,11 @@ interface DayColumnProps {
   onAddActivity: (dayId: number) => void;
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (activityId: number) => void;
+  onToggleMustDo?: (activity: Activity) => void;
   onViewMap?: (dayId: number) => void;
   isDropTarget?: boolean;
+  overActivityId?: number | null;
+  activeActivityId?: number | null;
   defaultDayStart?: string;
   defaultDayEnd?: string;
   onUpdateDay?: (dayId: number, patch: DayUpdate) => void | Promise<void>;
@@ -35,7 +38,7 @@ function formatWindowChip(
   const end = day.day_end ?? defaultEnd;
   const isCustom = day.day_start != null || day.day_end != null;
   return {
-    label: `${start.slice(0, 5)}–${end.slice(0, 5)}`,
+    label: `${formatTime(start) ?? start.slice(0, 5)}–${formatTime(end) ?? end.slice(0, 5)}`,
     isCustom,
   };
 }
@@ -68,44 +71,56 @@ function SortableActivityCard({
   activity,
   onEdit,
   onDelete,
+  onToggleMustDo,
+  showDropIndicator,
 }: {
   activity: Activity;
   onEdit: (a: Activity) => void;
   onDelete: (id: number) => void;
+  onToggleMustDo?: (a: Activity) => void;
+  showDropIndicator?: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: activity.id,
-  });
-  const reduce = useReducedMotion();
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: activity.id });
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.35 : 1,
   };
 
   return (
-    <motion.div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-start gap-0.5"
-      layout={!reduce && !isDragging ? "position" : false}
-      layoutId={reduce ? undefined : `activity-${activity.id}`}
-      initial={reduce ? false : { opacity: 0, y: -4 }}
-      animate={{ opacity: isDragging ? 0.5 : 1, y: 0 }}
-      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, height: 0, marginTop: 0 }}
-      transition={{ type: "spring", stiffness: 380, damping: 30 }}
-    >
-      <button
-        {...attributes}
-        {...listeners}
-        className="mt-2.5 shrink-0 cursor-grab active:cursor-grabbing text-black/20 hover:text-black/40 touch-none"
-      >
-        <GripVertical className="h-3 w-3" />
-      </button>
-      <div className="flex-1 min-w-0">
-        <ActivityCard activity={activity} onEdit={onEdit} onDelete={onDelete} />
+    <div ref={setNodeRef} style={style}>
+      {showDropIndicator && (
+        <motion.div
+          className="h-0.5 rounded-full bg-blue/70 mx-1 mb-1 origin-left"
+          initial={{ scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: 1, opacity: 1 }}
+          exit={{ scaleX: 0, opacity: 0 }}
+          transition={{ duration: 0.12 }}
+        />
+      )}
+      <div className="flex items-start gap-0.5">
+        <button
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          className="mt-2.5 shrink-0 cursor-grab active:cursor-grabbing text-black/20 hover:text-black/40 touch-none"
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <ActivityCard activity={activity} onEdit={onEdit} onDelete={onDelete} onToggleMustDo={onToggleMustDo} />
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -116,8 +131,11 @@ export default function DayColumn({
   onAddActivity,
   onEditActivity,
   onDeleteActivity,
+  onToggleMustDo,
   onViewMap,
   isDropTarget,
+  overActivityId,
+  activeActivityId,
   defaultDayStart = "09:00:00",
   defaultDayEnd = "21:00:00",
   onUpdateDay,
@@ -207,41 +225,34 @@ export default function DayColumn({
             />
           )}
 
-          {/* Orbital pebbles */}
-          <div className="flex items-center justify-center gap-1.5 mt-1.5">
-            {activities.length > 0 ? (
-              <>
-                <span className="inline-flex items-center gap-0.5 text-[9px] text-lightBlue bg-lightBlue/10 rounded-full px-1.5 py-0.5">
-                  <Clock className="h-2 w-2" />
-                  {totalHours}h
-                </span>
-                <span className="inline-flex items-center gap-0.5 text-[9px] text-lightBlue bg-lightBlue/10 rounded-full px-1.5 py-0.5">
-                  <DollarSign className="h-2 w-2" />
-                  ${totalCost.toFixed(0)}
-                </span>
-                {onViewMap && (
-                  <button
-                    onClick={() => onViewMap(day.id)}
-                    className="inline-flex items-center gap-0.5 text-[9px] text-blue/50 hover:text-blue bg-blue/5 hover:bg-blue/10 rounded-full px-1.5 py-0.5 transition"
-                  >
-                    <MapPin className="h-2 w-2" />
-                  </button>
-                )}
-              </>
-            ) : (
+          {activities.length === 0 && (
+            <div className="flex items-center justify-center mt-1.5">
               <button
                 onClick={() => onAddActivity(day.id)}
                 className="text-lightBlue/40 hover:text-lightBlue/70 transition star-twinkle"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
+      {activities.length > 0 && (
+        <div className="flex items-center justify-center gap-1.5 px-3 pt-2">
+          <div className="inline-flex items-center gap-1 bg-black/[0.04] rounded-lg px-2 py-1">
+            <Clock className="h-3 w-3 text-lightBlue/80" />
+            <span className="text-xs font-semibold text-black/75 tabular-nums">{totalHours}h</span>
+          </div>
+          <div className="inline-flex items-center gap-1 bg-black/[0.04] rounded-lg px-2 py-1">
+            <DollarSign className="h-3 w-3 text-lightBlue/80" />
+            <span className="text-xs font-semibold text-black/75 tabular-nums">${totalCost.toFixed(0)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Activity cards */}
-      <div className="flex-1 px-2 pb-2 space-y-1.5">
+      <div className="flex-1 px-2 pb-2 pt-2 space-y-1.5">
         <SortableContext items={activities.map((a) => a.id)} strategy={verticalListSortingStrategy}>
           <AnimatePresence initial={false}>
             {activities.map((act) => (
@@ -250,10 +261,25 @@ export default function DayColumn({
                 activity={act}
                 onEdit={onEditActivity}
                 onDelete={onDeleteActivity}
+                onToggleMustDo={onToggleMustDo}
+                showDropIndicator={
+                  !!activeActivityId &&
+                  activeActivityId !== act.id &&
+                  overActivityId === act.id
+                }
               />
             ))}
           </AnimatePresence>
         </SortableContext>
+        {isDropTarget && activities.length > 0 && overActivityId == null && (
+          <motion.div
+            className="h-0.5 rounded-full bg-blue/70 mx-1 origin-left"
+            initial={{ scaleX: 0, opacity: 0 }}
+            animate={{ scaleX: 1, opacity: 1 }}
+            exit={{ scaleX: 0, opacity: 0 }}
+            transition={{ duration: 0.12 }}
+          />
+        )}
 
         <button
           onClick={() => onAddActivity(day.id)}

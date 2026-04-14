@@ -27,6 +27,7 @@ def _ensure_new_columns():
         ("days", "day_start", "TIME"),
         ("days", "day_end", "TIME"),
         ("activities", "google_place_id", "VARCHAR"),
+        ("activities", "user_id", "INTEGER"),
     ]
     with engine.begin() as conn:
         for table, column, coltype in additions:
@@ -43,6 +44,25 @@ def _ensure_new_columns():
 
 
 _ensure_new_columns()
+
+
+def _backfill_activity_user_id():
+    """Populate activities.user_id for legacy rows by pulling the owning trip's owner_id.
+    Idempotent — only updates rows where user_id IS NULL AND trip_id IS NOT NULL."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                """
+                UPDATE activities
+                SET user_id = (SELECT owner_id FROM trips WHERE trips.id = activities.trip_id)
+                WHERE user_id IS NULL AND trip_id IS NOT NULL
+                """
+            ))
+    except Exception:  # noqa: BLE001
+        pass
+
+
+_backfill_activity_user_id()
 
 app = FastAPI(
     title="Navia API",

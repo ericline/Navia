@@ -43,7 +43,6 @@ export type {
   ArrangementAssignment,
   Arrangement,
   Collaborator,
-  BucketItem,
 } from "./types";
 
 export { DEFAULT_PREFERENCES } from "./types";
@@ -230,6 +229,18 @@ export async function fetchActivitiesForTrip(
       await res.text()
     );
     throw new Error("Failed to fetch activities");
+  }
+  return res.json();
+}
+
+/** Fetch the authenticated user's bucket-list activities (trip_id=null). */
+export async function fetchBucketActivities(): Promise<Activity[]> {
+  const res = await fetch(`${API_BASE_URL}/activities/bucket`, {
+    headers: { ...authHeaders() },
+  });
+  if (!res.ok) {
+    console.error("fetchBucketActivities failed", res.status, await res.text());
+    throw new Error("Failed to fetch bucket list");
   }
   return res.json();
 }

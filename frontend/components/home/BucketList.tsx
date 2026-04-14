@@ -1,22 +1,26 @@
 /**
- * BucketList - localStorage-backed wishlist for future trip ideas.
- * Each item has a name, location (with autocomplete), and optional notes.
+ * BucketList - server-backed wishlist for future trip ideas.
+ * Each item is an Activity with trip_id=null. Address autocomplete uses the
+ * Mapbox Search Box (POI-level), matching the trip's AddActivityPanel — so
+ * bucket items carry real lat/lng/category and flow into a trip cleanly.
  */
 "use client";
 
 import { MapPin, Trash2, Plus } from "lucide-react";
-import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
+import LocationAutocomplete, { ADDRESS_TYPES } from "@/components/ui/LocationAutocomplete";
 import { useBucketList } from "@/hooks/useBucketList";
 
 export default function BucketList() {
   const {
     bucket,
     newBucketName,
-    newBucketLoc,
+    newBucketAddress,
     newBucketNotes,
     setNewBucketName,
-    setNewBucketLoc,
+    setNewBucketAddress,
     setNewBucketNotes,
+    setNewBucketCoords,
+    setNewBucketCategory,
     addBucket,
     updateBucket,
     deleteBucket,
@@ -51,8 +55,16 @@ export default function BucketList() {
                   <div className="flex items-center gap-1 mt-0.5">
                     <MapPin className="h-2.5 w-2.5 text-black/30 shrink-0" />
                     <LocationAutocomplete
-                      value={b.location}
-                      onChange={(val) => updateBucket(b.id, { location: val })}
+                      value={b.address ?? ""}
+                      onChange={(val) => updateBucket(b.id, { address: val })}
+                      onCoordinates={(coords) =>
+                        updateBucket(b.id, { lng: coords[0], lat: coords[1] })
+                      }
+                      onCategory={(cat) => {
+                        if (!b.category) updateBucket(b.id, { category: cat });
+                      }}
+                      types={ADDRESS_TYPES}
+                      placeholder="Address"
                       containerClassName="flex-1 min-w-0"
                       className="bg-transparent text-[11px] text-black/40 w-full focus:outline-none"
                     />
@@ -67,7 +79,7 @@ export default function BucketList() {
               </div>
               <textarea
                 className="mt-1.5 w-full bg-transparent text-[11px] text-black/30 resize-none focus:outline-none"
-                value={b.notes}
+                value={b.notes ?? ""}
                 onChange={(e) => updateBucket(b.id, { notes: e.target.value })}
                 rows={1}
                 placeholder="Notes..."
@@ -86,9 +98,12 @@ export default function BucketList() {
             placeholder="Activity name"
           />
           <LocationAutocomplete
-            value={newBucketLoc}
-            onChange={setNewBucketLoc}
-            placeholder="Location"
+            value={newBucketAddress}
+            onChange={setNewBucketAddress}
+            onCoordinates={(coords) => setNewBucketCoords(coords)}
+            onCategory={(cat) => setNewBucketCategory(cat)}
+            types={ADDRESS_TYPES}
+            placeholder="Address"
             containerClassName="flex-1"
             className="glass-input w-full rounded-lg px-3 py-1.5 text-xs text-black/75 placeholder:text-black/40"
           />

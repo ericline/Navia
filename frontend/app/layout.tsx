@@ -2,6 +2,7 @@
 import "./globals.css";
 import AuthProvider from "@/contexts/AuthContext";
 import TopNav from "@/components/ui/TopNav";
+import PageTransition from "@/components/layout/PageTransition";
 
 export const metadata = {
   title: "Navia",
@@ -18,7 +19,7 @@ export default function RootLayout({
       <body className="min-h-screen text-black/85">
         <AuthProvider>
           <TopNav />
-          {children}
+          <PageTransition>{children}</PageTransition>
         </AuthProvider>
       </body>
     </html>

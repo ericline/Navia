@@ -101,7 +101,7 @@ export default function HeroWidget() {
               className="glass-input w-full rounded-xl pl-10 pr-4 py-3 text-sm text-black/85 placeholder:text-black/30"
               value={tripName}
               onChange={(e) => setTripName(e.target.value)}
-              placeholder="Trip name  (e.g., Japan 2026)"
+              placeholder="Trip name"
             />
           </div>
 

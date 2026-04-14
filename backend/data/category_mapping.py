@@ -112,7 +112,71 @@ NEIGHBORHOOD_HINTS: dict[str, list[str]] = {
 # Cuisine/style sub-queries applied to the "food" category during deep ingestion.
 CUISINE_HINTS: list[str] = [
     "Italian", "Japanese ramen", "brunch spots", "fine dining", "cheap eats",
+    "sushi", "Japanese", "Thai", "Mexican", "Indian", "Chinese", "Korean BBQ",
+    "Vietnamese", "Mediterranean", "steakhouse", "pizza", "vegan", "seafood",
+    "tacos", "dim sum",
 ]
+
+# Free-text interest keyword → (navia_category, google_places_search_phrase).
+# Used to translate user-declared interests into targeted ingest queries and
+# to detect matches against place name/description/types for scorer boosting.
+INTEREST_QUERY_HINTS: dict[str, tuple[str, str]] = {
+    # Cuisines
+    "sushi": ("food", "sushi restaurants"),
+    "japanese": ("food", "Japanese restaurants"),
+    "ramen": ("food", "ramen shops"),
+    "thai": ("food", "Thai restaurants"),
+    "mexican": ("food", "Mexican restaurants"),
+    "tacos": ("food", "taco spots"),
+    "indian": ("food", "Indian restaurants"),
+    "chinese": ("food", "Chinese restaurants"),
+    "dim sum": ("food", "dim sum restaurants"),
+    "korean": ("food", "Korean BBQ restaurants"),
+    "vietnamese": ("food", "Vietnamese restaurants"),
+    "mediterranean": ("food", "Mediterranean restaurants"),
+    "italian": ("food", "Italian restaurants"),
+    "pizza": ("food", "pizza places"),
+    "steakhouse": ("food", "steakhouses"),
+    "steak": ("food", "steakhouses"),
+    "seafood": ("food", "seafood restaurants"),
+    "vegan": ("food", "vegan restaurants"),
+    "vegetarian": ("food", "vegetarian restaurants"),
+    "brunch": ("food", "brunch spots"),
+    "bakery": ("food", "bakeries"),
+    # Drinks
+    "coffee": ("cafe", "specialty coffee shops"),
+    "cocktails": ("bar", "cocktail bars"),
+    "wine": ("bar", "wine bars"),
+    "beer": ("bar", "craft breweries"),
+    "breweries": ("bar", "craft breweries"),
+    # Outdoor / active
+    "hiking": ("park", "hiking trails"),
+    "nature": ("park", "nature parks"),
+    "gardens": ("park", "botanical gardens"),
+    "beaches": ("beach", "beaches"),
+    # Culture
+    "museums": ("museum", "museums"),
+    "art": ("museum", "art galleries"),
+    "history": ("museum", "history museums"),
+    # Entertainment / nightlife
+    "live music": ("nightlife", "live music venues"),
+    "nightlife": ("nightlife", "nightclubs"),
+    "clubs": ("nightlife", "nightclubs"),
+    "theater": ("entertainment", "theaters"),
+    # Shopping
+    "shopping": ("shopping", "shopping districts"),
+    "markets": ("shopping", "local markets"),
+    # Wellness
+    "spa": ("wellness", "spas"),
+    "yoga": ("wellness", "yoga studios"),
+}
+
+
+def get_interest_hint(interest: str) -> tuple[str, str] | None:
+    """Look up an interest string (case-insensitive) in INTEREST_QUERY_HINTS."""
+    if not interest:
+        return None
+    return INTEREST_QUERY_HINTS.get(interest.strip().lower())
 
 
 def _normalize_destination(destination: str) -> str:

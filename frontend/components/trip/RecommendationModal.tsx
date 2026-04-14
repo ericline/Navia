@@ -40,6 +40,7 @@ export default function RecommendationModal({
 
   useEffect(() => {
     if (!open) return;
+    if (!Number.isFinite(tripId)) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -94,7 +95,7 @@ export default function RecommendationModal({
           est_duration_minutes: r.est_duration_minutes,
           cost_estimate: r.cost_estimate,
           energy_level: r.energy_level,
-          must_do: r.must_do ?? false,
+          must_do: false,
           notes: r.notes,
           google_place_id: r.google_place_id ?? null,
         });
@@ -272,11 +273,6 @@ export default function RecommendationModal({
                             {r.category && (
                               <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-blue/10 text-blue/80">
                                 {r.category}
-                              </span>
-                            )}
-                            {r.must_do && (
-                              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600/80">
-                                must-do
                               </span>
                             )}
                           </div>

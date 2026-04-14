@@ -20,9 +20,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import httpx
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
+from data.destination_normalizer import normalize_destination
 from data.category_mapping import (
     CATEGORY_SEARCH_TERMS,
     CUISINE_HINTS,
@@ -186,10 +188,19 @@ def ingest_destination(
         logger.warning("GOOGLE_PLACES_API_KEY not set — cannot ingest places")
         return 0
 
+    destination = normalize_destination(destination)
     encoder = _get_encoder()
     cats = categories or [c for c in CATEGORY_SEARCH_TERMS if c not in SKIP_CATEGORIES]
     total = 0
-    seen_ids: set[str] = set()  # track google_place_ids within this run to avoid duplicates
+
+    # Pre-load every existing google_place_id → Place into memory. With autoflush=False
+    # on the session, per-row queries won't see pending adds from earlier in this run,
+    # which previously caused UNIQUE constraint failures at commit. An in-memory map
+    # is also the authoritative source of truth for "have I seen this gid yet."
+    existing_by_gid: dict[str, models.Place] = {
+        p.google_place_id: p
+        for p in db.query(models.Place).all()
+    }
 
     queries = _build_queries(destination, cats, depth)
     logger.info("Ingesting %s (depth=%s, %d queries)", destination, depth, len(queries))
@@ -205,18 +216,7 @@ def ingest_destination(
                 continue
 
             gid = parsed["google_place_id"]
-
-            # Skip if already processed in this run
-            if gid in seen_ids:
-                continue
-            seen_ids.add(gid)
-
-            # Check for existing place in DB (upsert)
-            existing = (
-                db.query(models.Place)
-                .filter(models.Place.google_place_id == gid)
-                .first()
-            )
+            existing = existing_by_gid.get(gid)
 
             # Compute embedding
             emb_text = _build_embedding_text(parsed)
@@ -227,24 +227,113 @@ def ingest_destination(
             if db.bind.dialect.name == "postgresql":
                 parsed["embedding_vec"] = embedding
 
-            if existing:
+            if existing is not None:
                 for key, val in parsed.items():
                     setattr(existing, key, val)
             else:
-                db.add(models.Place(**parsed))
+                place = models.Place(**parsed)
+                db.add(place)
+                existing_by_gid[gid] = place
                 total += 1
 
         # Respect rate limits — brief pause between category searches
         time.sleep(0.2)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        # Another ingestion (e.g. a concurrent request) raced us and committed
+        # overlapping google_place_ids first. Roll back; the winner's work is
+        # already in the DB, so the caller's downstream query still succeeds.
+        db.rollback()
+        logger.warning("Ingest commit lost a race on %s — rolled back: %s", destination, e.orig)
+        return 0
     logger.info("Ingested %d new places for %s", total, destination)
     return total
 
 
 def get_place_count(db: Session, destination: str) -> int:
     """Return the number of places in the DB for a destination."""
+    destination = normalize_destination(destination)
     return db.query(models.Place).filter(models.Place.destination == destination).count()
+
+
+def count_places_matching(db: Session, destination: str, keyword: str) -> int:
+    """Count places for a destination whose name/description/types contain `keyword` (case-insensitive)."""
+    destination = normalize_destination(destination)
+    kw = f"%{keyword.lower()}%"
+    from sqlalchemy import or_, func as _func
+    return (
+        db.query(models.Place)
+        .filter(models.Place.destination == destination)
+        .filter(
+            or_(
+                _func.lower(models.Place.name).like(kw),
+                _func.lower(models.Place.description).like(kw),
+                _func.lower(models.Place.types_raw).like(kw),
+            )
+        )
+        .count()
+    )
+
+
+def ingest_interest(destination: str, interest: str, db: Session) -> int:
+    """Run one targeted Google Places search for an interest keyword and upsert results.
+
+    Reuses the same dedup + embedding + commit path as `ingest_destination`.
+    Returns the number of new places added.
+    """
+    if not _GOOGLE_API_KEY:
+        logger.warning("GOOGLE_PLACES_API_KEY not set — cannot ingest interest")
+        return 0
+
+    from data.category_mapping import get_interest_hint
+    hint = get_interest_hint(interest)
+    if not hint:
+        return 0
+    _cat, phrase = hint
+
+    destination = normalize_destination(destination)
+    encoder = _get_encoder()
+
+    existing_by_gid: dict[str, models.Place] = {
+        p.google_place_id: p
+        for p in db.query(models.Place).all()
+    }
+
+    query = f"{phrase} in {destination}"
+    logger.info("Ingesting interest '%s' for %s: %s", interest, destination, query)
+    raw_places = _search_places(query, max_results=20)
+
+    total = 0
+    for raw in raw_places:
+        parsed = _parse_place(raw, destination)
+        if not parsed:
+            continue
+        gid = parsed["google_place_id"]
+        existing = existing_by_gid.get(gid)
+        emb_text = _build_embedding_text(parsed)
+        embedding = encoder.encode(emb_text).tolist()
+        parsed["embedding"] = json.dumps(embedding)
+        if db.bind.dialect.name == "postgresql":
+            parsed["embedding_vec"] = embedding
+        if existing is not None:
+            for key, val in parsed.items():
+                setattr(existing, key, val)
+        else:
+            place = models.Place(**parsed)
+            db.add(place)
+            existing_by_gid[gid] = place
+            total += 1
+
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        logger.warning("Interest ingest lost a race on %s/%s — rolled back: %s", destination, interest, e.orig)
+        return 0
+    logger.info("Interest ingest added %d places for %s/%s", total, destination, interest)
+    return total
 
 
 # CLI entry point

@@ -1,7 +1,8 @@
 /** TripCalendarStrip - Week-paginated day selector with drag-and-drop activity reordering via @dnd-kit. */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Day, Activity, DayUpdate } from "@/lib/api";
 import { getTodayStr } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -9,22 +10,7 @@ import ConstellationPath from "@/components/constellation/ConstellationPath";
 import DayColumn from "./DayColumn";
 import ActivityCard from "./ActivityCard";
 import { DndContext, DragOverlay, pointerWithin, DragEndEvent, DragStartEvent, DragOverEvent } from "@dnd-kit/core";
-import type { Modifier } from "@dnd-kit/core";
-
-/** Snap the DragOverlay center to the pointer so it doesn't drift right of the cursor. */
-const snapCenterToCursor: Modifier = ({ activatorEvent, draggingNodeRect, transform }) => {
-  if (activatorEvent && draggingNodeRect) {
-    const e = activatorEvent as PointerEvent;
-    if (typeof e.clientX === "number") {
-      return {
-        ...transform,
-        x: transform.x + (e.clientX - draggingNodeRect.left - draggingNodeRect.width / 2),
-        y: transform.y + (e.clientY - draggingNodeRect.top - draggingNodeRect.height / 2),
-      };
-    }
-  }
-  return transform;
-};
+import { GripVertical } from "lucide-react";
 
 interface TripCalendarStripProps {
   days: Day[];
@@ -34,6 +20,7 @@ interface TripCalendarStripProps {
   onAddActivity: (dayId: number) => void;
   onEditActivity: (activity: Activity) => void;
   onDeleteActivity: (activityId: number) => void;
+  onToggleMustDo?: (activity: Activity) => void;
   tripName?: string;
   onViewDayMap?: (dayId: number) => void;
   onReorderActivities?: (dayId: number, orderedIds: number[]) => void;
@@ -74,6 +61,7 @@ export default function TripCalendarStrip({
   onAddActivity,
   onEditActivity,
   onDeleteActivity,
+  onToggleMustDo,
   tripName,
   onViewDayMap,
   onReorderActivities,
@@ -93,6 +81,9 @@ export default function TripCalendarStrip({
 
   const [activeActivity, setActiveActivity] = useState<Activity | null>(null);
   const [overDayId, setOverDayId] = useState<number | null>(null);
+  const [overActivityId, setOverActivityId] = useState<number | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   function handleDragStart(event: DragStartEvent) {
     const id = Number(event.active.id);
@@ -104,14 +95,17 @@ export default function TripCalendarStrip({
 
   function handleDragOver(event: DragOverEvent) {
     const { over } = event;
-    if (!over) { setOverDayId(null); return; }
+    if (!over) { setOverDayId(null); setOverActivityId(null); return; }
     setOverDayId(resolveDayId(over.id, activitiesByDay));
+    const overStr = String(over.id);
+    setOverActivityId(overStr.startsWith("day-") ? null : Number(over.id));
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     setActiveActivity(null);
     setOverDayId(null);
+    setOverActivityId(null);
     if (!over) return;
 
     const activeId = Number(active.id);
@@ -208,8 +202,11 @@ export default function TripCalendarStrip({
                 onAddActivity={onAddActivity}
                 onEditActivity={onEditActivity}
                 onDeleteActivity={onDeleteActivity}
+                onToggleMustDo={onToggleMustDo}
                 onViewMap={onViewDayMap}
                 isDropTarget={overDayId === day.id && findDayForActivity(activeActivity?.id ?? 0, activitiesByDay) !== day.id}
+                overActivityId={overDayId === day.id ? overActivityId : null}
+                activeActivityId={activeActivity?.id ?? null}
                 onUpdateDay={onUpdateDay}
                 defaultDayStart={defaultDayStart}
                 defaultDayEnd={defaultDayEnd}
@@ -217,17 +214,26 @@ export default function TripCalendarStrip({
             </div>
           ))}
         </div>
-        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
-          {activeActivity && (
-            <div className="w-44 opacity-90 rotate-2 scale-105">
-              <ActivityCard
-                activity={activeActivity}
-                onEdit={() => {}}
-                onDelete={() => {}}
-              />
-            </div>
+        {mounted &&
+          createPortal(
+            <DragOverlay dropAnimation={null}>
+              {activeActivity && (
+                <div className="flex items-start gap-0.5 shadow-xl">
+                  <div className="mt-2.5 shrink-0 text-black/40">
+                    <GripVertical className="h-3 w-3" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <ActivityCard
+                      activity={activeActivity}
+                      onEdit={() => {}}
+                      onDelete={() => {}}
+                    />
+                  </div>
+                </div>
+              )}
+            </DragOverlay>,
+            document.body
           )}
-        </DragOverlay>
       </DndContext>
     </section>
   );

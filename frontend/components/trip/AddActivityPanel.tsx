@@ -142,7 +142,7 @@ export default function AddActivityPanel({
           est_duration_minutes: parsedDuration,
           cost_estimate: parsedCost,
           energy_level: form.energy || undefined,
-          must_do: form.mustDo,
+          must_do: form.mustDo && !!startTime,
           start_time: startTime,
           notes: form.notes || undefined,
         });
@@ -158,7 +158,7 @@ export default function AddActivityPanel({
           est_duration_minutes: parsedDuration,
           cost_estimate: parsedCost,
           energy_level: form.energy || undefined,
-          must_do: form.mustDo,
+          must_do: form.mustDo && !!startTime,
           start_time: startTime,
           notes: form.notes || undefined,
         });
@@ -391,12 +391,17 @@ function PanelContent({
           <input
             id="panel-must-do"
             type="checkbox"
-            className="h-3.5 w-3.5 rounded"
-            checked={form.mustDo}
+            className="h-3.5 w-3.5 rounded disabled:opacity-40"
+            checked={form.mustDo && !!form.time}
+            disabled={!form.time}
             onChange={(e) => updateField("mustDo", e.target.checked)}
           />
-          <label htmlFor="panel-must-do" className="text-xs text-black/55">
-            Mark as must-do
+          <label
+            htmlFor="panel-must-do"
+            className={`text-xs ${form.time ? "text-black/55" : "text-black/30"}`}
+            title={form.time ? "" : "Set a start time to enable Must-Do"}
+          >
+            Mark as must-do {form.time ? "" : "(requires a start time)"}
           </label>
         </div>
 

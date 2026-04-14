@@ -1,6 +1,8 @@
-# CPU-only torch — prevents ~2GB of NVIDIA CUDA wheels on Linux (Railway has no GPU).
+# CPU-only torch on Linux (Railway has no GPU — prevents ~2GB of NVIDIA CUDA wheels).
+# macOS uses the plain wheel; `+cpu` tag is Linux-only on the pytorch index.
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.4.1+cpu
+torch==2.4.1+cpu; sys_platform == "linux"
+torch==2.4.1; sys_platform != "linux"
 
 alembic==1.17.2
 annotated-doc==0.0.4
@@ -34,6 +36,7 @@ websockets==15.0.1
 pytest==8.4.1
 httpx==0.28.1
 sentence-transformers==3.3.1
+transformers==4.41.2
 tensorflow==2.18.0
 tf-keras==2.18.0
 numpy>=1.26

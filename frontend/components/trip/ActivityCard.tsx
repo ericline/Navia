@@ -13,13 +13,16 @@ interface ActivityCardProps {
   activity: Activity;
   onEdit?: (activity: Activity) => void;
   onDelete?: (activityId: number) => void;
+  onToggleMustDo?: (activity: Activity) => void;
 }
 
 export default function ActivityCard({
   activity,
   onEdit,
   onDelete,
+  onToggleMustDo,
 }: ActivityCardProps) {
+  const canBeMustDo = !!activity.start_time;
   const accentColor = getAccentColor(activity.category);
   const minH = activity.est_duration_minutes
     ? Math.min(40 + activity.est_duration_minutes * 0.3, 80)
@@ -39,10 +42,41 @@ export default function ActivityCard({
             {formatTime(activity.start_time) && (
               <span className="text-[11px] text-black/40 leading-none">{formatTime(activity.start_time)}</span>
             )}
-            <p className="text-[13px] font-medium text-black/80 leading-snug pr-6">
-              {activity.name}
-              {activity.must_do && (
-                <Star className="inline h-3 w-3 text-pink fill-pink ml-1 -mt-0.5" />
+            <p className="text-[13px] font-medium text-black/80 leading-snug pr-6 flex items-center gap-1">
+              <span>{activity.name}</span>
+              {onToggleMustDo ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (canBeMustDo) onToggleMustDo(activity);
+                  }}
+                  disabled={!canBeMustDo}
+                  title={
+                    canBeMustDo
+                      ? activity.must_do
+                        ? "Unmark Must-Do"
+                        : "Mark as Must-Do"
+                      : "Set a start time to enable Must-Do"
+                  }
+                  className={`inline-flex items-center justify-center shrink-0 rounded transition ${
+                    canBeMustDo ? "hover:bg-pink/10" : "cursor-not-allowed"
+                  }`}
+                >
+                  <Star
+                    className={`h-3 w-3 transition ${
+                      activity.must_do
+                        ? "text-pink fill-pink"
+                        : canBeMustDo
+                          ? "text-black/25 hover:text-pink"
+                          : "text-black/10"
+                    }`}
+                  />
+                </button>
+              ) : (
+                activity.must_do && (
+                  <Star className="h-3 w-3 text-pink fill-pink shrink-0" />
+                )
               )}
             </p>
           </div>
@@ -50,16 +84,17 @@ export default function ActivityCard({
 
         {/* Edit / Delete — absolutely positioned to avoid layout shift */}
         {(onEdit || onDelete) && (
-          <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition bg-white/80 rounded-lg px-0.5 py-0.5">
+          <div className="activity-hover-menu absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition bg-white rounded-lg px-0.5 py-0.5 shadow-sm border border-black/10">
             {onEdit && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdit(activity);
                 }}
-                className="rounded p-0.5 hover:bg-black/[0.06] text-black/25 hover:text-blue/70 transition"
+                className="rounded p-1 hover:bg-blue/10 text-black/55 hover:text-blue transition"
+                title="Edit"
               >
-                <Pencil className="h-2.5 w-2.5" />
+                <Pencil className="h-3 w-3" />
               </button>
             )}
             {onDelete && (
@@ -68,9 +103,10 @@ export default function ActivityCard({
                   e.stopPropagation();
                   onDelete(activity.id);
                 }}
-                className="rounded p-0.5 hover:bg-red-50 text-black/25 hover:text-red-400 transition"
+                className="rounded p-1 hover:bg-red-50 text-black/55 hover:text-red-500 transition"
+                title="Delete"
               >
-                <Trash2 className="h-2.5 w-2.5" />
+                <Trash2 className="h-3 w-3" />
               </button>
             )}
           </div>

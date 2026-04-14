@@ -134,8 +134,12 @@ class Activity(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), index=True)
+    trip_id = Column(Integer, ForeignKey("trips.id", ondelete="CASCADE"), nullable=True, index=True)
     day_id = Column(Integer, ForeignKey("days.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Owner of the activity. Always populated; for bucket-list items (trip_id IS NULL)
+    # this is the sole authorization anchor. For trip activities it's a denormalized
+    # cache of the trip owner so ownership checks can stay uniform.
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
 
     name = Column(String, index=True, nullable=False)
     category = Column(String, nullable=True)

@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, Plane } from "lucide-react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { TripDetailed, fetchTripsDetailed } from "@/lib/api";
 import { isPastTrip, isCurrentOrUpcoming, sortByStartAsc } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,6 +50,18 @@ export default function HomePage() {
     () => trips.filter(isCurrentOrUpcoming).sort(sortByStartAsc),
     [trips]
   );
+
+  const reduce = useReducedMotion();
+  const gridVariants: Variants = {
+    hidden: {},
+    show: { transition: reduce ? {} : { staggerChildren: 0.05, delayChildren: 0.05 } },
+  };
+  const itemVariants: Variants = {
+    hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 6 },
+    show: reduce
+      ? { opacity: 1, transition: { duration: 0.15 } }
+      : { opacity: 1, y: 0, transition: { type: "spring", stiffness: 320, damping: 28 } },
+  };
 
   if (isLoading) {
     return (
@@ -96,11 +109,18 @@ export default function HomePage() {
                 <p className="text-xs text-black/25 mt-1">Create your first trip above</p>
               </div>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <motion.div
+                className="grid gap-3 md:grid-cols-2 lg:grid-cols-3"
+                variants={gridVariants}
+                initial="hidden"
+                animate="show"
+              >
                 {currentTrips.slice(0, 6).map((t) => (
-                  <UpcomingTripCard key={t.id} trip={t} />
+                  <motion.div key={t.id} variants={itemVariants}>
+                    <UpcomingTripCard trip={t} />
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
           </section>
 

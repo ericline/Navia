@@ -27,6 +27,7 @@ from crud.activities import (
     get_activity,
     get_activities_for_trip,
     get_activities_for_day,
+    get_bucket_activities,
     create_activity,
     update_activity,
     delete_activity,
@@ -45,6 +46,6 @@ __all__ = [
     "create_trip", "trip_to_response",
     "get_day", "get_days_for_trip", "create_day", "update_day", "generate_days_for_trip",
     "get_activity", "get_activities_for_trip", "get_activities_for_day",
-    "create_activity", "update_activity", "delete_activity",
+    "get_bucket_activities", "create_activity", "update_activity", "delete_activity",
     "get_collaborators", "is_collaborator", "add_collaborator", "remove_collaborator",
 ]

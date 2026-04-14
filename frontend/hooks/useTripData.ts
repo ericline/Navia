@@ -125,7 +125,23 @@ export function useTripData(tripId: number) {
 
   async function handleUpdateActivity(id: number, data: ActivityUpdate) {
     try {
-      await apiUpdateActivity(id, data);
+      // Must-Do requires a start_time; clearing time clears must_do.
+      const patch: ActivityUpdate = { ...data };
+      if ("start_time" in patch && !patch.start_time) {
+        patch.must_do = false;
+      }
+      await apiUpdateActivity(id, patch);
+      await refreshActivities();
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update activity.");
+    }
+  }
+
+  async function handleToggleMustDo(activity: Activity) {
+    if (!activity.start_time) return;
+    try {
+      await apiUpdateActivity(activity.id, { must_do: !activity.must_do });
       await refreshActivities();
     } catch (err) {
       console.error(err);
@@ -237,5 +253,6 @@ export function useTripData(tripId: number) {
     handleScheduleActivity,
     handleMoveActivityToDay,
     handleUpdateDay,
+    handleToggleMustDo,
   };
 }

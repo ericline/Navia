@@ -44,6 +44,23 @@ _PACE_OPTIONS = ["relaxed", "balanced", "packed"]
 _PACE_INDEX = {p: i for i, p in enumerate(_PACE_OPTIONS)}
 
 
+def interest_match(prefs, place: models.Place) -> float:
+    """1.0 if any of the user's declared interests appears in the place's
+    name / description / types_raw (case-insensitive substring), else 0.0.
+    Returns 0.0 when prefs.interests is empty."""
+    interests = getattr(prefs, "interests", None) or []
+    if not interests:
+        return 0.0
+    haystack = " ".join(
+        (getattr(place, attr, "") or "") for attr in ("name", "description", "types_raw")
+    ).lower()
+    for interest in interests:
+        token = (interest or "").strip().lower()
+        if token and token in haystack:
+            return 1.0
+    return 0.0
+
+
 def extract_features(prefs, place: models.Place, similarity: float = 0.0) -> np.ndarray:
     """Extract a 25-dim feature vector from a (user_prefs, place) pair.
 

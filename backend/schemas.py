@@ -125,8 +125,10 @@ class Day(DayBase):
 # ---------- Activity Schemas ----------
 
 class ActivityBase(BaseModel):
-    trip_id: int
+    # trip_id is nullable: bucket-list activities have trip_id=None.
+    trip_id: Optional[int] = None
     day_id: Optional[int] = None
+    user_id: Optional[int] = None
 
     name: str = Field(..., min_length=1, max_length=500)
     category: Optional[str] = Field(None, max_length=100)
@@ -150,6 +152,7 @@ class ActivityCreate(ActivityBase):
 
 
 class ActivityUpdate(BaseModel):
+    trip_id: Optional[int] = None
     day_id: Optional[int] = None
     name: Optional[str] = Field(None, min_length=1, max_length=500)
     category: Optional[str] = Field(None, max_length=100)
@@ -165,6 +168,8 @@ class ActivityUpdate(BaseModel):
     position: Optional[int] = None
     # sentinel to allow explicitly setting day_id to null (unschedule)
     unschedule: bool = False
+    # sentinel to push an activity back to the user's bucket list (trip_id=null)
+    to_bucket: bool = False
 
 
 class Activity(ActivityBase):
