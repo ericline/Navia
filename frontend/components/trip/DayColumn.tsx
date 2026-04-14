@@ -1,13 +1,16 @@
 /** DayColumn - Renders a single day's activity list with add button and today highlight. */
 "use client";
 
-import { Day, Activity } from "@/lib/api";
+import { useState } from "react";
+import { Day, Activity, DayUpdate } from "@/lib/api";
 import { getCategoryKey, CATEGORY_NEBULA_COLORS, type CategoryKey } from "@/lib/utils";
 import { Plus, Clock, DollarSign, MapPin, GripVertical } from "lucide-react";
 import ActivityCard from "./ActivityCard";
+import DayWindowEditor from "./DayWindowEditor";
 import { SortableContext, verticalListSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 interface DayColumnProps {
   day: Day;
@@ -18,6 +21,23 @@ interface DayColumnProps {
   onDeleteActivity: (activityId: number) => void;
   onViewMap?: (dayId: number) => void;
   isDropTarget?: boolean;
+  defaultDayStart?: string;
+  defaultDayEnd?: string;
+  onUpdateDay?: (dayId: number, patch: DayUpdate) => void | Promise<void>;
+}
+
+function formatWindowChip(
+  day: Day,
+  defaultStart: string,
+  defaultEnd: string
+): { label: string; isCustom: boolean } {
+  const start = day.day_start ?? defaultStart;
+  const end = day.day_end ?? defaultEnd;
+  const isCustom = day.day_start != null || day.day_end != null;
+  return {
+    label: `${start.slice(0, 5)}–${end.slice(0, 5)}`,
+    isCustom,
+  };
 }
 
 function getNebulaColor(activities: Activity[]): string {
@@ -56,6 +76,7 @@ function SortableActivityCard({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: activity.id,
   });
+  const reduce = useReducedMotion();
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -63,7 +84,17 @@ function SortableActivityCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-start gap-0.5">
+    <motion.div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-start gap-0.5"
+      layout={!reduce && !isDragging ? "position" : false}
+      layoutId={reduce ? undefined : `activity-${activity.id}`}
+      initial={reduce ? false : { opacity: 0, y: -4 }}
+      animate={{ opacity: isDragging ? 0.5 : 1, y: 0 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, height: 0, marginTop: 0 }}
+      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+    >
       <button
         {...attributes}
         {...listeners}
@@ -74,7 +105,7 @@ function SortableActivityCard({
       <div className="flex-1 min-w-0">
         <ActivityCard activity={activity} onEdit={onEdit} onDelete={onDelete} />
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -87,8 +118,13 @@ export default function DayColumn({
   onDeleteActivity,
   onViewMap,
   isDropTarget,
+  defaultDayStart = "09:00:00",
+  defaultDayEnd = "21:00:00",
+  onUpdateDay,
 }: DayColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `day-${day.id}` });
+  const [windowEditorOpen, setWindowEditorOpen] = useState(false);
+  const windowChip = formatWindowChip(day, defaultDayStart, defaultDayEnd);
   const nebulaColor = getNebulaColor(activities);
   const totalMinutes = activities.reduce(
     (sum, a) => sum + (a.est_duration_minutes || 0),
@@ -114,9 +150,9 @@ export default function DayColumn({
       style={showDropIndicator ? undefined : { background: "rgb(var(--warmSurface) / 0.6)" }}
     >
       {/* Header with nebula glow */}
-      <div className="relative px-3 pt-3 pb-2 rounded-t-2xl overflow-hidden">
+      <div className="relative px-3 pt-3 pb-2 rounded-t-2xl">
         <div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none rounded-t-2xl overflow-hidden"
           style={{
             background: `radial-gradient(circle at 50% 0%, ${nebulaColor}, transparent 70%)`,
           }}
@@ -141,6 +177,34 @@ export default function DayColumn({
             <div className="text-[10px] text-black/35 truncate mt-0.5">
               {day.name}
             </div>
+          )}
+
+          {onUpdateDay && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setWindowEditorOpen((v) => !v);
+              }}
+              className={`inline-flex items-center gap-0.5 text-[9px] rounded-full px-1.5 py-0.5 mt-1 transition ${
+                windowChip.isCustom
+                  ? "text-blue bg-blue/10 hover:bg-blue/15"
+                  : "text-black/35 bg-black/[0.04] hover:bg-black/[0.08]"
+              }`}
+              title={windowChip.isCustom ? "Custom day window" : "Default day window"}
+            >
+              <Clock className="h-2 w-2" />
+              {windowChip.label}
+            </button>
+          )}
+          {windowEditorOpen && onUpdateDay && (
+            <DayWindowEditor
+              day={day}
+              defaultStart={defaultDayStart}
+              defaultEnd={defaultDayEnd}
+              onClose={() => setWindowEditorOpen(false)}
+              onUpdateDay={onUpdateDay}
+            />
           )}
 
           {/* Orbital pebbles */}
@@ -179,14 +243,16 @@ export default function DayColumn({
       {/* Activity cards */}
       <div className="flex-1 px-2 pb-2 space-y-1.5">
         <SortableContext items={activities.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-          {activities.map((act) => (
-            <SortableActivityCard
-              key={act.id}
-              activity={act}
-              onEdit={onEditActivity}
-              onDelete={onDeleteActivity}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {activities.map((act) => (
+              <SortableActivityCard
+                key={act.id}
+                activity={act}
+                onEdit={onEditActivity}
+                onDelete={onDeleteActivity}
+              />
+            ))}
+          </AnimatePresence>
         </SortableContext>
 
         <button

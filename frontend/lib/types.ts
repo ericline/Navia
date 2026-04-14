@@ -47,6 +47,8 @@ export interface Day {
   date: string; // ISO date
   name?: string | null;
   notes?: string | null;
+  day_start?: string | null; // "HH:MM:SS"
+  day_end?: string | null;
 }
 
 export interface DayCreate {
@@ -54,6 +56,17 @@ export interface DayCreate {
   date: string;
   name?: string;
   notes?: string;
+  day_start?: string | null;
+  day_end?: string | null;
+}
+
+export interface DayUpdate {
+  name?: string;
+  notes?: string;
+  day_start?: string | null;
+  day_end?: string | null;
+  reset_start?: boolean;
+  reset_end?: boolean;
 }
 
 // ---------- Activity ----------
@@ -77,6 +90,7 @@ export interface Activity {
   start_time?: string | null;
   notes?: string | null;
   position: number;
+  google_place_id?: string | null;
 }
 
 export interface ActivityCreate {
@@ -96,6 +110,7 @@ export interface ActivityCreate {
   must_do?: boolean;
   start_time?: string | null;
   notes?: string | null;
+  google_place_id?: string | null;
 }
 
 export interface ActivityUpdate {
@@ -116,6 +131,9 @@ export interface ActivityUpdate {
 
 // ---------- User ----------
 
+export type TravelStyle = "adventurous" | "cultural" | "culinary" | "relaxed" | "nightlife";
+export type GroupType = "solo" | "couple" | "family" | "friends";
+
 export interface UserPreferences {
   max_walking_km: number;
   max_activity_budget: number;
@@ -125,6 +143,9 @@ export interface UserPreferences {
   day_start: string; // "HH:MM:SS"
   day_end: string;
   dietary: string[];
+  travel_style?: TravelStyle | null;
+  group_type?: GroupType | null;
+  interests: string[];
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
@@ -136,6 +157,9 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   day_start: "09:00:00",
   day_end: "21:00:00",
   dietary: [],
+  travel_style: null,
+  group_type: null,
+  interests: [],
 };
 
 export interface UserOut {

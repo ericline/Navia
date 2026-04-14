@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Share2 } from "lucide-react";
+import { Plus, Share2, Sparkles } from "lucide-react";
 import type { Activity } from "@/lib/types";
 import { fetchActivitiesForTrip } from "@/lib/api";
 import { TripHeader, TripCalendarStrip, UnscheduledDock, AddActivityPanel, CollaboratorPanel, RecommendationModal, ArrangementBrowser } from "@/components/trip";
@@ -42,6 +42,7 @@ export default function TripDetailPage() {
     handleReorderActivities,
     handleScheduleActivity,
     handleMoveActivityToDay,
+    handleUpdateDay,
   } = useTripData(tripId);
 
   // Calendar strip week pagination
@@ -204,6 +205,9 @@ export default function TripDetailPage() {
           onViewDayMap={(dayId) => router.push(`/trips/${tripId}/day/${dayId}`)}
           onReorderActivities={handleReorderActivities}
           onMoveActivity={handleMoveActivityToDay}
+          onUpdateDay={handleUpdateDay}
+          defaultDayStart={user?.preferences?.day_start ?? "09:00:00"}
+          defaultDayEnd={user?.preferences?.day_end ?? "21:00:00"}
         />
       ) : (
         <section className="glass bg-warmSurface rounded-2xl p-8 text-center">
@@ -212,6 +216,14 @@ export default function TripDetailPage() {
           </p>
         </section>
       )}
+
+      <button
+        onClick={() => setRecommendOpen(true)}
+        className="fixed bottom-32 right-6 z-30 flex items-center justify-center w-12 h-12 rounded-full bg-blue/90 shadow-lg hover:bg-blue transition constellation-star-today"
+        title="AI suggestions based on your trip so far"
+      >
+        <Sparkles className="h-5 w-5 text-white" />
+      </button>
 
       <button
         onClick={() => handleOpenPanel()}

@@ -132,8 +132,15 @@ def _place_to_rec_dict(place: models.Place) -> dict:
     }
 
 
-def _ml_recommend(trip: models.Trip, prefs, db: Session) -> list[dict]:
-    """Run the custom ML recommendation pipeline: retrieve → score → diversify."""
+def _ml_recommend(
+    trip: models.Trip, prefs, db: Session, user: models.User
+) -> list[dict]:
+    """Run the custom ML recommendation pipeline: retrieve → score → diversify.
+
+    Context-aware: excludes places already on the trip and places the user has
+    previously skipped/added (for this trip), and augments the query embedding
+    with a short summary of what's already planned + what was rejected.
+    """
     from ml.encoder import build_query_embedding, vector_search
     from ml.scorer import score_candidates, diversity_rerank
 
@@ -148,17 +155,61 @@ def _ml_recommend(trip: models.Trip, prefs, db: Session) -> list[dict]:
         logger.warning("Insufficient places (%d) for %s after ingestion", count, trip.destination)
         return []
 
-    # Step 2: Retrieve candidates via embedding similarity
-    query_emb = build_query_embedding(trip.destination, prefs)
-    candidates = vector_search(db, trip.destination, query_emb, limit=50)
+    # Step 2: Build context from existing trip activities + prior feedback
+    existing = crud.get_activities_for_trip(db, trip.id)
+    existing_gpids = {a.google_place_id for a in existing if a.google_place_id}
+    has_names = [a.name for a in existing if a.name][:20]
+
+    feedback_rows = (
+        db.query(models.RecommendationFeedback)
+        .filter(
+            models.RecommendationFeedback.user_id == user.id,
+            models.RecommendationFeedback.trip_id == trip.id,
+        )
+        .all()
+    )
+    skipped_place_ids: set[int] = set()
+    added_place_ids: set[int] = set()
+    for fb in feedback_rows:
+        if fb.place_id is None:
+            continue
+        if fb.signal == "skipped":
+            skipped_place_ids.add(fb.place_id)
+        elif fb.signal in ("added", "scheduled", "must_do"):
+            added_place_ids.add(fb.place_id)
+
+    # Skipped-place names (for embedding negative nudge)
+    avoid_names: list[str] = []
+    if skipped_place_ids:
+        skipped_places = (
+            db.query(models.Place.name)
+            .filter(models.Place.id.in_(skipped_place_ids))
+            .all()
+        )
+        avoid_names = [p.name for p in skipped_places][:20]
+
+    context = {"has": has_names, "avoid": avoid_names} if (has_names or avoid_names) else None
+
+    # Step 3: Retrieve candidates via embedding similarity — fetch extra to survive filtering
+    query_emb = build_query_embedding(trip.destination, prefs, context=context)
+    candidates = vector_search(db, trip.destination, query_emb, limit=80)
 
     if not candidates:
         return []
 
-    # Step 3: Score and rank with TF model (or heuristic fallback)
-    scored = score_candidates(prefs, candidates)
+    # Step 4: Filter out existing + skipped + already-added places
+    exclude_ids = skipped_place_ids | added_place_ids
+    filtered = [
+        (p, s) for (p, s) in candidates
+        if p.id not in exclude_ids and (not p.google_place_id or p.google_place_id not in existing_gpids)
+    ]
+    if not filtered:
+        return []
 
-    # Step 4: Diversity re-ranking via MMR
+    # Step 5: Score and rank with TF model (or heuristic fallback)
+    scored = score_candidates(prefs, filtered)
+
+    # Step 6: Diversity re-ranking via MMR
     top_places = diversity_rerank(scored, top_k=10, lambda_=0.7)
 
     return [_place_to_rec_dict(p) for p in top_places]
@@ -176,7 +227,7 @@ def recommend_for_trip(
 
     recs: list[dict] = []
     try:
-        recs = _ml_recommend(trip, prefs, db)
+        recs = _ml_recommend(trip, prefs, db, current_user)
     except Exception as e:
         logger.error("ML recommendation pipeline failed: %s", e, exc_info=True)
 

@@ -1,7 +1,7 @@
 /**
- * PreferencesSection - Editable user preference form (pace, budget, walking
- * distance, day window, likes/dislikes, dietary restrictions). Reads and
- * writes preferences via the AuthContext.
+ * PreferencesSection - Editable user preference form.
+ * Likes/dislikes are canonical category chips (drives ML scorer's category_match);
+ * travel_style / group_type / interests feed the retrieval encoder.
  */
 "use client";
 
@@ -9,6 +9,14 @@ import { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
 import type { UserPreferences } from "@/lib/types";
 import { DEFAULT_PREFERENCES } from "@/lib/types";
+import {
+  USER_FACING_CATEGORIES,
+  CATEGORY_LABELS,
+  TRAVEL_STYLES,
+  GROUP_TYPES,
+  NAVIA_CATEGORIES,
+  type NaviaCategory,
+} from "@/lib/constants";
 import { useAuth } from "@/contexts/AuthContext";
 
 function timeToHHMM(t: string): string {
@@ -19,6 +27,12 @@ function hhmmToTime(t: string): string {
   return t.length === 5 ? `${t}:00` : t;
 }
 
+const CANONICAL_SET = new Set<string>(NAVIA_CATEGORIES);
+
+function sanitizeCategoryList(xs: string[]): NaviaCategory[] {
+  return xs.filter((x): x is NaviaCategory => CANONICAL_SET.has(x));
+}
+
 export default function PreferencesSection() {
   const { user, updateUser } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -27,27 +41,48 @@ export default function PreferencesSection() {
 
   const initial: UserPreferences = user?.preferences ?? DEFAULT_PREFERENCES;
   const [draft, setDraft] = useState<UserPreferences>(initial);
-  const [likesText, setLikesText] = useState(initial.likes.join(", "));
-  const [dislikesText, setDislikesText] = useState(initial.dislikes.join(", "));
   const [dietaryText, setDietaryText] = useState(initial.dietary.join(", "));
+  const [interestsText, setInterestsText] = useState(
+    (initial.interests ?? []).join(", ")
+  );
 
   useEffect(() => {
     if (!user) return;
     const p = user.preferences ?? DEFAULT_PREFERENCES;
     setDraft(p);
-    setLikesText(p.likes.join(", "));
-    setDislikesText(p.dislikes.join(", "));
     setDietaryText(p.dietary.join(", "));
+    setInterestsText((p.interests ?? []).join(", "));
   }, [user]);
 
   function cancel() {
     const p = user?.preferences ?? DEFAULT_PREFERENCES;
     setDraft(p);
-    setLikesText(p.likes.join(", "));
-    setDislikesText(p.dislikes.join(", "));
     setDietaryText(p.dietary.join(", "));
+    setInterestsText((p.interests ?? []).join(", "));
     setError(null);
     setEditing(false);
+  }
+
+  function toggleLike(cat: NaviaCategory) {
+    const likes = new Set(sanitizeCategoryList(draft.likes));
+    const dislikes = new Set(sanitizeCategoryList(draft.dislikes));
+    if (likes.has(cat)) likes.delete(cat);
+    else {
+      likes.add(cat);
+      dislikes.delete(cat);
+    }
+    setDraft({ ...draft, likes: [...likes], dislikes: [...dislikes] });
+  }
+
+  function toggleDislike(cat: NaviaCategory) {
+    const likes = new Set(sanitizeCategoryList(draft.likes));
+    const dislikes = new Set(sanitizeCategoryList(draft.dislikes));
+    if (dislikes.has(cat)) dislikes.delete(cat);
+    else {
+      dislikes.add(cat);
+      likes.delete(cat);
+    }
+    setDraft({ ...draft, likes: [...likes], dislikes: [...dislikes] });
   }
 
   async function save() {
@@ -58,9 +93,10 @@ export default function PreferencesSection() {
         s.split(",").map((x) => x.trim()).filter(Boolean);
       const next: UserPreferences = {
         ...draft,
-        likes: parseChips(likesText),
-        dislikes: parseChips(dislikesText),
+        likes: sanitizeCategoryList(draft.likes),
+        dislikes: sanitizeCategoryList(draft.dislikes),
         dietary: parseChips(dietaryText),
+        interests: parseChips(interestsText),
         day_start: hhmmToTime(draft.day_start),
         day_end: hhmmToTime(draft.day_end),
       };
@@ -77,6 +113,8 @@ export default function PreferencesSection() {
   }
 
   const p = editing ? draft : initial;
+  const likesSet = new Set(sanitizeCategoryList(p.likes));
+  const dislikesSet = new Set(sanitizeCategoryList(p.dislikes));
 
   return (
     <section className="glass bg-coolCard rounded-2xl p-6 space-y-4">
@@ -204,35 +242,155 @@ export default function PreferencesSection() {
         </div>
 
         <div className="rounded-xl bg-white/60 border border-black/6 p-4 sm:col-span-2">
-          <div className="text-xs text-black/40">Likes (comma-separated)</div>
+          <div className="text-xs text-black/40">Travel style</div>
           {editing ? (
-            <input
-              type="text"
-              value={likesText}
-              onChange={(e) => setLikesText(e.target.value)}
-              placeholder="food, museums, hiking"
-              className="glass-input mt-1 w-full rounded-lg px-2 py-1 text-sm text-black/85"
-            />
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {TRAVEL_STYLES.map((s) => {
+                const active = draft.travel_style === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        travel_style: active
+                          ? null
+                          : (s.value as UserPreferences["travel_style"]),
+                      })
+                    }
+                    title={s.hint}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                      active
+                        ? "bg-blue/15 border-blue/40 text-blue"
+                        : "bg-white/60 border-black/10 text-black/60 hover:border-blue/30"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
           ) : (
-            <div className="mt-1 text-sm font-medium text-black/80">
-              {p.likes.length > 0 ? p.likes.join(", ") : "—"}
+            <div className="mt-1 text-sm font-medium text-black/80 capitalize">
+              {p.travel_style ?? "—"}
             </div>
           )}
         </div>
 
         <div className="rounded-xl bg-white/60 border border-black/6 p-4 sm:col-span-2">
-          <div className="text-xs text-black/40">Dislikes (comma-separated)</div>
+          <div className="text-xs text-black/40">Group type</div>
+          {editing ? (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {GROUP_TYPES.map((g) => {
+                const active = draft.group_type === g.value;
+                return (
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        group_type: active
+                          ? null
+                          : (g.value as UserPreferences["group_type"]),
+                      })
+                    }
+                    className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                      active
+                        ? "bg-blue/15 border-blue/40 text-blue"
+                        : "bg-white/60 border-black/10 text-black/60 hover:border-blue/30"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-1 text-sm font-medium text-black/80 capitalize">
+              {p.group_type ?? "—"}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-white/60 border border-black/6 p-4 sm:col-span-2">
+          <div className="text-xs text-black/40">Likes</div>
+          {editing ? (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {USER_FACING_CATEGORIES.map((cat) => {
+                const active = likesSet.has(cat);
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleLike(cat)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                      active
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700"
+                        : "bg-white/60 border-black/10 text-black/60 hover:border-emerald-400/30"
+                    }`}
+                  >
+                    {CATEGORY_LABELS[cat]}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-1 text-sm font-medium text-black/80">
+              {likesSet.size > 0
+                ? [...likesSet].map((c) => CATEGORY_LABELS[c]).join(", ")
+                : "—"}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-white/60 border border-black/6 p-4 sm:col-span-2">
+          <div className="text-xs text-black/40">Dislikes</div>
+          {editing ? (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {USER_FACING_CATEGORIES.map((cat) => {
+                const active = dislikesSet.has(cat);
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleDislike(cat)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                      active
+                        ? "bg-rose-500/15 border-rose-500/40 text-rose-700"
+                        : "bg-white/60 border-black/10 text-black/60 hover:border-rose-400/30"
+                    }`}
+                  >
+                    {CATEGORY_LABELS[cat]}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mt-1 text-sm font-medium text-black/80">
+              {dislikesSet.size > 0
+                ? [...dislikesSet].map((c) => CATEGORY_LABELS[c]).join(", ")
+                : "—"}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-white/60 border border-black/6 p-4 sm:col-span-2">
+          <div className="text-xs text-black/40">
+            Interests (comma-separated — e.g. street food, rooftop bars)
+          </div>
           {editing ? (
             <input
               type="text"
-              value={dislikesText}
-              onChange={(e) => setDislikesText(e.target.value)}
-              placeholder="nightclubs, long lines"
+              value={interestsText}
+              onChange={(e) => setInterestsText(e.target.value)}
+              placeholder="street food, rooftop bars, hidden bookshops"
               className="glass-input mt-1 w-full rounded-lg px-2 py-1 text-sm text-black/85"
             />
           ) : (
             <div className="mt-1 text-sm font-medium text-black/80">
-              {p.dislikes.length > 0 ? p.dislikes.join(", ") : "—"}
+              {(p.interests?.length ?? 0) > 0 ? (p.interests ?? []).join(", ") : "—"}
             </div>
           )}
         </div>

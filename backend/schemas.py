@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 # ---------- User Preferences ----------
 
+TravelStyle = Literal["adventurous", "cultural", "culinary", "relaxed", "nightlife"]
+GroupType = Literal["solo", "couple", "family", "friends"]
+
+
 class UserPreferences(BaseModel):
     max_walking_km: float = 2.0
     max_activity_budget: float = 100.0
@@ -16,6 +20,9 @@ class UserPreferences(BaseModel):
     day_start: time = time(9, 0)
     day_end: time = time(21, 0)
     dietary: list[str] = []
+    travel_style: Optional[TravelStyle] = None
+    group_type: Optional[GroupType] = None
+    interests: list[str] = []
 
 
 # ---------- User / Auth Schemas ----------
@@ -91,10 +98,22 @@ class DayBase(BaseModel):
     date: date
     name: Optional[str] = Field(None, max_length=300)
     notes: Optional[str] = Field(None, max_length=2000)
+    day_start: Optional[time] = None
+    day_end: Optional[time] = None
 
 
 class DayCreate(DayBase):
     pass
+
+
+class DayUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=300)
+    notes: Optional[str] = Field(None, max_length=2000)
+    day_start: Optional[time] = None
+    day_end: Optional[time] = None
+    # Sentinels for explicit null so the client can clear a per-day override.
+    reset_start: bool = False
+    reset_end: bool = False
 
 
 class Day(DayBase):
@@ -123,6 +142,7 @@ class ActivityBase(BaseModel):
     start_time: Optional[time] = None
     notes: Optional[str] = Field(None, max_length=5000)
     position: int = 0
+    google_place_id: Optional[str] = Field(None, max_length=200)
 
 
 class ActivityCreate(ActivityBase):

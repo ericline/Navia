@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { Day, Activity } from "@/lib/api";
+import { Day, Activity, DayUpdate } from "@/lib/api";
 import { getTodayStr } from "@/lib/utils";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import ConstellationPath from "@/components/constellation/ConstellationPath";
@@ -38,6 +38,9 @@ interface TripCalendarStripProps {
   onViewDayMap?: (dayId: number) => void;
   onReorderActivities?: (dayId: number, orderedIds: number[]) => void;
   onMoveActivity?: (activityId: number, toDayId: number) => void;
+  onUpdateDay?: (dayId: number, patch: DayUpdate) => void | Promise<void>;
+  defaultDayStart?: string;
+  defaultDayEnd?: string;
 }
 
 const MAX_VISIBLE = 14;
@@ -75,6 +78,9 @@ export default function TripCalendarStrip({
   onViewDayMap,
   onReorderActivities,
   onMoveActivity,
+  onUpdateDay,
+  defaultDayStart,
+  defaultDayEnd,
 }: TripCalendarStripProps) {
   const totalDays = days.length;
   const visibleCount = Math.min(MAX_VISIBLE, totalDays - weekOffset);
@@ -204,6 +210,9 @@ export default function TripCalendarStrip({
                 onDeleteActivity={onDeleteActivity}
                 onViewMap={onViewDayMap}
                 isDropTarget={overDayId === day.id && findDayForActivity(activeActivity?.id ?? 0, activitiesByDay) !== day.id}
+                onUpdateDay={onUpdateDay}
+                defaultDayStart={defaultDayStart}
+                defaultDayEnd={defaultDayEnd}
               />
             </div>
           ))}

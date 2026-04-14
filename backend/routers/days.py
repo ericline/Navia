@@ -49,3 +49,20 @@ def create_day(
     """Create a single day row within a trip."""
     verify_trip_access(db, day.trip_id, current_user)
     return crud.create_day(db=db, day=day)
+
+
+@router.patch("/{day_id}", response_model=schemas.Day)
+def update_day(
+    day_id: int,
+    update: schemas.DayUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Partially update a day — name, notes, or per-day time window overrides."""
+    existing = crud.get_day(db, day_id=day_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Day not found")
+    verify_trip_access(db, existing.trip_id, current_user)
+    if update.day_start and update.day_end and update.day_end <= update.day_start:
+        raise HTTPException(status_code=400, detail="day_end must be after day_start")
+    return crud.update_day(db, day_id=day_id, update=update)

@@ -45,6 +45,9 @@ class User(Base):
     pref_day_start = Column(Time, nullable=True)
     pref_day_end = Column(Time, nullable=True)
     pref_dietary = Column(String, nullable=True)       # JSON-encoded list
+    pref_travel_style = Column(String, nullable=True)  # "adventurous"|"cultural"|"culinary"|"relaxed"|"nightlife"
+    pref_group_type = Column(String, nullable=True)    # "solo"|"couple"|"family"|"friends"
+    pref_interests = Column(String, nullable=True)     # JSON-encoded list (freeform chips)
 
     owned_trips = relationship(
         "Trip",
@@ -113,6 +116,8 @@ class Day(Base):
     date = Column(Date, nullable=False)
     name = Column(String, nullable=True)
     notes = Column(String, nullable=True)
+    day_start = Column(Time, nullable=True)  # per-day override; null = inherit from user prefs
+    day_end = Column(Time, nullable=True)
 
     # Relationships
     trip = relationship("Trip", back_populates="days")
@@ -146,6 +151,7 @@ class Activity(Base):
     start_time = Column(Time, nullable=True)
     notes = Column(String, nullable=True)
     position = Column(Integer, nullable=True, default=0)
+    google_place_id = Column(String, nullable=True, index=True)  # links activity back to Places row for dedupe
 
     # Relationships
     trip = relationship("Trip", back_populates="activities")

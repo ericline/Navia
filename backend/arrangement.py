@@ -43,6 +43,21 @@ def _day_window_minutes(day_start: time, day_end: time) -> int:
     return max(0, end_min - start_min - 60)  # -1h for meals/transit buffer
 
 
+def _effective_window(day, prefs) -> tuple[time, time]:
+    """Resolve the effective (start, end) time window for a day — per-day override
+    takes precedence over the user's global preference window."""
+    start = getattr(day, "day_start", None) or prefs.day_start
+    end = getattr(day, "day_end", None) or prefs.day_end
+    return start, end
+
+
+def _day_budget_minutes(day, prefs) -> int:
+    """Usable minutes for a specific day, capped by both pace budget and the
+    day's effective window (per-day override or user prefs)."""
+    start, end = _effective_window(day, prefs)
+    return min(_pace_budget_minutes(prefs.pace), _day_window_minutes(start, end))
+
+
 def _activity_minutes(a) -> int:
     return int(a.est_duration_minutes or 90)
 
@@ -70,18 +85,20 @@ def _existing_end_minute(existing: list[Any], day_start: time) -> int:
 def _schedule_within_days(
     ordered_by_day: list[list[Any]],
     days: list[Any],
-    day_start: time,
+    prefs,
     existing_by_day: dict[int, list[Any]] | None = None,
 ) -> list[Assignment]:
     """Given activities bucketed per day (same length as days), assign start_times
-    and positions sequentially within each day, starting after existing activities."""
-    start_min_base = day_start.hour * 60 + day_start.minute
+    and positions sequentially within each day, starting after existing activities.
+    Each day resolves its own start time from per-day override or user prefs."""
     existing_by_day = existing_by_day or {}
     assignments: list[Assignment] = []
     for day_idx, acts in enumerate(ordered_by_day):
         if day_idx >= len(days):
             break
         day = days[day_idx]
+        day_start, _day_end = _effective_window(day, prefs)
+        start_min_base = day_start.hour * 60 + day_start.minute
         existing = existing_by_day.get(day.id, [])
         existing_end = _existing_end_minute(existing, day_start)
         cursor = max(start_min_base, existing_end)
@@ -105,9 +122,9 @@ def _strategy_balanced(
     activities: list[Any], days: list[Any], prefs,
     existing_by_day: dict[int, list[Any]] | None = None,
 ) -> list[list[Any]]:
-    """Round-robin activities across days, respecting daily duration budget."""
+    """Round-robin activities across days, respecting each day's own duration budget."""
     existing_by_day = existing_by_day or {}
-    budget = min(_pace_budget_minutes(prefs.pace), _day_window_minutes(prefs.day_start, prefs.day_end))
+    day_budget = [_day_budget_minutes(day, prefs) for day in days]
     buckets: list[list[Any]] = [[] for _ in days]
     # Pre-fill day_used with existing scheduled activity durations
     day_used = [
@@ -118,10 +135,14 @@ def _strategy_balanced(
     sorted_acts = sorted(activities, key=lambda a: (not bool(a.must_do), -_activity_minutes(a)))
     for a in sorted_acts:
         dur = _activity_minutes(a)
-        # Pick the day with the most remaining capacity
-        idx = min(range(len(days)), key=lambda i: day_used[i])
-        if day_used[idx] + dur > budget and any(day_used[i] + dur <= budget for i in range(len(days))):
-            idx = next(i for i in range(len(days)) if day_used[i] + dur <= budget)
+        # Prefer the day with the most remaining capacity (relative to its own budget)
+        def remaining(i: int) -> int:
+            return day_budget[i] - day_used[i]
+        idx = max(range(len(days)), key=remaining)
+        if day_used[idx] + dur > day_budget[idx] and any(
+            day_used[i] + dur <= day_budget[i] for i in range(len(days))
+        ):
+            idx = next(i for i in range(len(days)) if day_used[i] + dur <= day_budget[i])
         buckets[idx].append(a)
         day_used[idx] += dur
     return buckets
@@ -294,7 +315,7 @@ def generate_arrangements(
             continue
         if not buckets:
             continue
-        assignments = _schedule_within_days(buckets, days, prefs.day_start, existing_by_day)
+        assignments = _schedule_within_days(buckets, days, prefs, existing_by_day)
         if not assignments:
             continue
         out.append({"name": name, "description": desc, "assignments": assignments})

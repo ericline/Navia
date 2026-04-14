@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion";
 import { X, Sparkles, Loader2, Star, CheckCircle } from "lucide-react";
 import {
   RecommendedActivity,
@@ -95,6 +96,7 @@ export default function RecommendationModal({
           energy_level: r.energy_level,
           must_do: r.must_do ?? false,
           notes: r.notes,
+          google_place_id: r.google_place_id ?? null,
         });
         void sendRecommendationFeedback(tripId, r.place_id ?? null, "added");
       }
@@ -123,11 +125,48 @@ export default function RecommendationModal({
     onClose();
   }
 
-  if (!mounted || !open) return null;
+  const reduce = useReducedMotion();
+
+  const panelTransition = reduce
+    ? { duration: 0.15 }
+    : { type: "spring" as const, stiffness: 260, damping: 24 };
+
+  const listVariants: Variants = {
+    hidden: {},
+    show: {
+      transition: reduce
+        ? { staggerChildren: 0 }
+        : { staggerChildren: 0.035, delayChildren: 0.05 },
+    },
+  };
+
+  const itemVariants: Variants = {
+    hidden: reduce ? { opacity: 0 } : { opacity: 0, y: 4 },
+    show: reduce
+      ? { opacity: 1, transition: { duration: 0.15 } }
+      : { opacity: 1, y: 0, transition: { type: "spring", stiffness: 320, damping: 26 } },
+  };
+
+  if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="glass bg-warmSurface rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl">
+    <AnimatePresence>
+      {open && (
+    <motion.div
+      key="rec-modal"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+    >
+      <motion.div
+        className="glass bg-warmSurface rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+        initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: 8 }}
+        animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.97, y: 4 }}
+        transition={panelTransition}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-black/8">
           <div className="flex items-center gap-2">
@@ -173,14 +212,20 @@ export default function RecommendationModal({
           )}
 
           {!loading && recs.length > 0 && (
-            <ul className="space-y-2">
+            <motion.ul
+              className="space-y-2"
+              variants={listVariants}
+              initial="hidden"
+              animate="show"
+            >
               {recs.map((r, idx) => {
                 const isSelected = selected.has(idx);
                 return (
-                  <li key={idx}>
-                    <button
+                  <motion.li key={idx} variants={itemVariants}>
+                    <motion.button
                       type="button"
                       onClick={() => toggle(idx)}
+                      whileTap={reduce ? undefined : { scale: 0.98 }}
                       className={`w-full text-left rounded-xl border p-3 transition ${
                         isSelected
                           ? "border-blue/40 bg-blue/5"
@@ -264,11 +309,11 @@ export default function RecommendationModal({
                           )}
                         </div>
                       </div>
-                    </button>
-                  </li>
+                    </motion.button>
+                  </motion.li>
                 );
               })}
-            </ul>
+            </motion.ul>
           )}
 
           {error && (
@@ -300,8 +345,10 @@ export default function RecommendationModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>,
+      </motion.div>
+    </motion.div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }

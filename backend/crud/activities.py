@@ -53,6 +53,7 @@ def create_activity(db: Session, activity: schemas.ActivityCreate):
         start_time=activity.start_time,
         notes=activity.notes,
         position=max_pos + 1,
+        google_place_id=activity.google_place_id,
     )
     db.add(db_activity)
     db.commit()

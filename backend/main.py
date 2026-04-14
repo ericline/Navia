@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
 
+from sqlalchemy import inspect, text
+
 from database import Base, engine
 from routers import trips, days, activities, auth, ai
 
@@ -12,6 +14,35 @@ load_dotenv()
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+
+
+def _ensure_new_columns():
+    """Idempotent ALTER TABLE ADD COLUMN for fields added after initial deploy.
+    SQLAlchemy's create_all only creates missing tables, not missing columns."""
+    insp = inspect(engine)
+    additions = [
+        ("users", "pref_travel_style", "VARCHAR"),
+        ("users", "pref_group_type", "VARCHAR"),
+        ("users", "pref_interests", "VARCHAR"),
+        ("days", "day_start", "TIME"),
+        ("days", "day_end", "TIME"),
+        ("activities", "google_place_id", "VARCHAR"),
+    ]
+    with engine.begin() as conn:
+        for table, column, coltype in additions:
+            try:
+                existing = {c["name"] for c in insp.get_columns(table)}
+            except Exception:
+                continue
+            if column in existing:
+                continue
+            try:
+                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN {column} {coltype}'))
+            except Exception:  # noqa: BLE001
+                pass
+
+
+_ensure_new_columns()
 
 app = FastAPI(
     title="Navia API",

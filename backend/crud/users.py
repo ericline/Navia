@@ -49,14 +49,25 @@ def update_user(db: Session, user_id: int, update: schemas.UserUpdate) -> models
         db_user.pref_day_start = p.day_start
         db_user.pref_day_end = p.day_end
         db_user.pref_dietary = json.dumps(p.dietary)
+        db_user.pref_travel_style = p.travel_style
+        db_user.pref_group_type = p.group_type
+        db_user.pref_interests = json.dumps(p.interests)
     db.commit()
     db.refresh(db_user)
     return db_user
 
 
 def user_preferences_from_db(user: models.User) -> schemas.UserPreferences:
-    """Build a UserPreferences schema from the stored columns, applying defaults."""
+    """Build a UserPreferences schema from the stored columns, applying defaults.
+
+    Legacy likes/dislikes stored as freeform strings are sanitized here — entries
+    that aren't valid Navia categories are dropped so the ML scorer's
+    category_match feature fires reliably.
+    """
+    from data.category_mapping import NAVIA_CATEGORIES
+
     defaults = schemas.UserPreferences()
+    _CANON = set(NAVIA_CATEGORIES)
 
     def _decode_list(raw):
         if not raw:
@@ -67,15 +78,21 @@ def user_preferences_from_db(user: models.User) -> schemas.UserPreferences:
         except (ValueError, TypeError):
             return []
 
+    def _canon_filter(vals: list) -> list[str]:
+        return [v for v in vals if isinstance(v, str) and v in _CANON]
+
     return schemas.UserPreferences(
         max_walking_km=user.pref_max_walking_km if user.pref_max_walking_km is not None else defaults.max_walking_km,
         max_activity_budget=user.pref_max_activity_budget if user.pref_max_activity_budget is not None else defaults.max_activity_budget,
-        likes=_decode_list(user.pref_likes),
-        dislikes=_decode_list(user.pref_dislikes),
+        likes=_canon_filter(_decode_list(user.pref_likes)),
+        dislikes=_canon_filter(_decode_list(user.pref_dislikes)),
         pace=user.pref_pace or defaults.pace,
         day_start=user.pref_day_start or defaults.day_start,
         day_end=user.pref_day_end or defaults.day_end,
         dietary=_decode_list(user.pref_dietary),
+        travel_style=user.pref_travel_style,
+        group_type=user.pref_group_type,
+        interests=_decode_list(user.pref_interests),
     )
 
 

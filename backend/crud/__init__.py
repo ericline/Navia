@@ -20,6 +20,7 @@ from crud.days import (
     get_day,
     get_days_for_trip,
     create_day,
+    update_day,
     generate_days_for_trip,
 )
 from crud.activities import (
@@ -42,7 +43,7 @@ __all__ = [
     "user_preferences_from_db", "user_to_out",
     "get_trip", "get_trips_for_user", "get_trips_detailed_for_user",
     "create_trip", "trip_to_response",
-    "get_day", "get_days_for_trip", "create_day", "generate_days_for_trip",
+    "get_day", "get_days_for_trip", "create_day", "update_day", "generate_days_for_trip",
     "get_activity", "get_activities_for_trip", "get_activities_for_day",
     "create_activity", "update_activity", "delete_activity",
     "get_collaborators", "is_collaborator", "add_collaborator", "remove_collaborator",

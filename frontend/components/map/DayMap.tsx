@@ -11,7 +11,7 @@ import {
   getCategoryKey,
   CATEGORY_ACCENT_CLASSES,
 } from "@/lib/utils";
-import { ArrowLeft, Footprints, Car, MapPin } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Footprints, Car, MapPin } from "lucide-react";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
 
@@ -39,6 +39,8 @@ interface DayMapProps {
   activities: Activity[];
   tripName: string;
   onBack: () => void;
+  onPrevDay?: (() => void) | null;
+  onNextDay?: (() => void) | null;
 }
 
 export default function DayMap({
@@ -46,6 +48,8 @@ export default function DayMap({
   activities,
   tripName,
   onBack,
+  onPrevDay,
+  onNextDay,
 }: DayMapProps) {
   const mapRef = useRef<MapRef>(null);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -62,6 +66,29 @@ export default function DayMap({
 
   // Fit bounds once on initial load
   const hasFitRef = useRef(false);
+
+  // Keyboard arrow navigation between days
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "ArrowLeft" && onPrevDay) {
+        e.preventDefault();
+        onPrevDay();
+      } else if (e.key === "ArrowRight" && onNextDay) {
+        e.preventDefault();
+        onNextDay();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onPrevDay, onNextDay]);
+
+  // Reset fit when day changes (for prev/next navigation)
+  useEffect(() => {
+    hasFitRef.current = false;
+    setSelectedIdx(null);
+  }, [day.id]);
 
   useEffect(() => {
     if (hasFitRef.current || mappedActivities.length === 0) return;
@@ -146,16 +173,35 @@ export default function DayMap({
         <button
           onClick={onBack}
           className="rounded-lg p-1.5 hover:bg-black/[0.06] transition text-black/50"
+          title="Back to trip"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="text-sm font-semibold text-black/80 truncate">
             {day.name || dateLabel}
           </h1>
           <p className="text-xs text-black/40 truncate">
             {tripName} &middot; {dateLabel}
           </p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => onPrevDay?.()}
+            disabled={!onPrevDay}
+            className="rounded-lg p-1.5 hover:bg-black/[0.06] transition text-black/50 disabled:opacity-25 disabled:cursor-not-allowed"
+            title="Previous day"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => onNextDay?.()}
+            disabled={!onNextDay}
+            className="rounded-lg p-1.5 hover:bg-black/[0.06] transition text-black/50 disabled:opacity-25 disabled:cursor-not-allowed"
+            title="Next day"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
         </div>
       </header>
 

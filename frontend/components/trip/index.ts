@@ -1,6 +1,7 @@
 export { default as TripHeader } from "./TripHeader";
 export { default as TripCalendarStrip } from "./TripCalendarStrip";
 export { default as DayColumn } from "./DayColumn";
+export { default as DayWindowEditor } from "./DayWindowEditor";
 export { default as ActivityCard } from "./ActivityCard";
 export { default as UnscheduledDock } from "./UnscheduledDock";
 export { default as AddActivityPanel } from "./AddActivityPanel";

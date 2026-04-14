@@ -26,6 +26,7 @@ export default function DayMapPage() {
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [day, setDay] = useState<Day | null>(null);
+  const [sortedDays, setSortedDays] = useState<Day[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +50,11 @@ export default function DayMapPage() {
         if (cancelled) return;
 
         setTrip(tripData);
+
+        const sorted = daysData
+          .slice()
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        setSortedDays(sorted);
 
         const targetDay = daysData.find((d) => d.id === dayId);
         if (!targetDay) {
@@ -96,12 +102,29 @@ export default function DayMapPage() {
     );
   }
 
+  const currentIdx = sortedDays.findIndex((d) => d.id === dayId);
+  const prevDayId = currentIdx > 0 ? sortedDays[currentIdx - 1].id : null;
+  const nextDayId =
+    currentIdx >= 0 && currentIdx < sortedDays.length - 1
+      ? sortedDays[currentIdx + 1].id
+      : null;
+
   return (
     <DayMap
       day={day}
       activities={activities}
       tripName={trip.name}
       onBack={() => router.push(`/trips/${tripId}`)}
+      onPrevDay={
+        prevDayId != null
+          ? () => router.push(`/trips/${tripId}/day/${prevDayId}`)
+          : null
+      }
+      onNextDay={
+        nextDayId != null
+          ? () => router.push(`/trips/${tripId}/day/${nextDayId}`)
+          : null
+      }
     />
   );
 }

@@ -11,6 +11,7 @@ import type {
   TripDetailed,
   Day,
   DayCreate,
+  DayUpdate,
   Activity,
   ActivityCreate,
   ActivityUpdate,
@@ -30,6 +31,7 @@ export type {
   TripDetailed,
   Day,
   DayCreate,
+  DayUpdate,
   Activity,
   ActivityCreate,
   ActivityUpdate,
@@ -194,6 +196,20 @@ export async function createDay(data: DayCreate): Promise<Day> {
   if (!res.ok) {
     console.error("createDay failed", res.status, await res.text());
     throw new Error("Failed to create day");
+  }
+  return res.json();
+}
+
+/** Partially update a day (name, notes, per-day time window). */
+export async function updateDay(dayId: number, data: DayUpdate): Promise<Day> {
+  const res = await fetch(`${API_BASE_URL}/days/${dayId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Failed to update day" }));
+    throw new Error(body.detail ?? "Failed to update day");
   }
   return res.json();
 }

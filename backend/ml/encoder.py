@@ -44,13 +44,17 @@ def encode_text(text: str) -> np.ndarray:
     return encoder.encode(text, normalize_embeddings=True)
 
 
-def build_query_embedding(destination: str, prefs) -> np.ndarray:
+def build_query_embedding(destination: str, prefs, context: dict | None = None) -> np.ndarray:
     """Encode user preferences into the same embedding space as places.
 
     Args:
         destination: trip destination string
         prefs: UserPreferences schema (has likes, dislikes, max_activity_budget,
-               pace, dietary attributes)
+               pace, dietary, and optionally travel_style/group_type/interests)
+        context: optional dict `{"has": [...], "avoid": [...]}` with names of
+                 already-planned and previously-skipped items for the trip.
+                 Purely additive — nudges the retrieval toward complementary
+                 items and away from things the user rejected.
 
     Returns:
         384-d normalized numpy array.
@@ -58,14 +62,25 @@ def build_query_embedding(destination: str, prefs) -> np.ndarray:
     likes = ", ".join(prefs.likes) if prefs.likes else "anything"
     dislikes = ", ".join(prefs.dislikes) if prefs.dislikes else "nothing in particular"
     dietary = ", ".join(prefs.dietary) if prefs.dietary else "none"
+    interests = ", ".join(getattr(prefs, "interests", []) or []) or "none"
+    travel_style = getattr(prefs, "travel_style", None) or "any style"
+    group_type = getattr(prefs, "group_type", None) or "any group"
 
     query = (
-        f"Activities in {destination} for someone who likes {likes}. "
-        f"Dislikes: {dislikes}. "
+        f"Activities in {destination} for a {group_type} traveler with a {travel_style} style. "
+        f"Likes: {likes}. Dislikes: {dislikes}. "
+        f"Specific interests: {interests}. "
         f"Budget per activity: ${prefs.max_activity_budget}. "
         f"Pace: {prefs.pace}. "
         f"Dietary needs: {dietary}."
     )
+    if context:
+        has = context.get("has") or []
+        avoid = context.get("avoid") or []
+        if has:
+            query += f" Already planned: {', '.join(has[:20])}."
+        if avoid:
+            query += f" Not interested in: {', '.join(avoid[:20])}."
     return encode_text(query)
 
 

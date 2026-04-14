@@ -24,8 +24,39 @@ def create_day(db: Session, day: schemas.DayCreate):
         date=day.date,
         name=day.name,
         notes=day.notes,
+        day_start=day.day_start,
+        day_end=day.day_end,
     )
     db.add(db_day)
+    db.commit()
+    db.refresh(db_day)
+    return db_day
+
+
+def update_day(db: Session, day_id: int, update: schemas.DayUpdate):
+    """Partially update a day. `reset_start`/`reset_end` sentinels clear per-day
+    overrides back to inheriting the user's preferences window."""
+    db_day = db.query(models.Day).filter(models.Day.id == day_id).first()
+    if not db_day:
+        return None
+
+    provided = update.model_fields_set
+
+    if update.reset_start:
+        db_day.day_start = None
+    elif "day_start" in provided:
+        db_day.day_start = update.day_start
+
+    if update.reset_end:
+        db_day.day_end = None
+    elif "day_end" in provided:
+        db_day.day_end = update.day_end
+
+    if "name" in provided:
+        db_day.name = update.name
+    if "notes" in provided:
+        db_day.notes = update.notes
+
     db.commit()
     db.refresh(db_day)
     return db_day

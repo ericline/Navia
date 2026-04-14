@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Trip, Day, Activity, ActivityCreate, ActivityUpdate } from "@/lib/types";
+import type { Trip, Day, DayUpdate, Activity, ActivityCreate, ActivityUpdate } from "@/lib/types";
 import {
   fetchTrip,
   fetchDaysForTrip,
@@ -16,6 +16,7 @@ import {
   deleteActivity as apiDeleteActivity,
   deleteTrip as apiDeleteTrip,
   reorderActivities,
+  updateDay as apiUpdateDay,
 } from "@/lib/api";
 
 export function useTripData(tripId: number) {
@@ -172,6 +173,38 @@ export function useTripData(tripId: number) {
     }
   }
 
+  async function handleUpdateDay(dayId: number, patch: DayUpdate) {
+    // Optimistic update so the chip flips immediately
+    setDays((prev) =>
+      prev.map((d) =>
+        d.id === dayId
+          ? {
+              ...d,
+              ...(patch.name !== undefined ? { name: patch.name } : {}),
+              ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+              ...(patch.reset_start
+                ? { day_start: null }
+                : patch.day_start !== undefined
+                  ? { day_start: patch.day_start }
+                  : {}),
+              ...(patch.reset_end
+                ? { day_end: null }
+                : patch.day_end !== undefined
+                  ? { day_end: patch.day_end }
+                  : {}),
+            }
+          : d
+      )
+    );
+    try {
+      await apiUpdateDay(dayId, patch);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to update day.");
+      setDays(await fetchDaysForTrip(tripId));
+    }
+  }
+
   async function handleMoveActivityToDay(activityId: number, toDayId: number) {
     // Optimistic update: move the activity in local state
     setActivities((prev) => prev.map((a) =>
@@ -203,5 +236,6 @@ export function useTripData(tripId: number) {
     handleReorderActivities,
     handleScheduleActivity,
     handleMoveActivityToDay,
+    handleUpdateDay,
   };
 }

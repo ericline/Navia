@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Day, Activity } from "@/lib/api";
 import { getTodayStr, getConstellationTheme } from "@/lib/utils";
 
@@ -93,26 +94,28 @@ export default function TripConstellation({
 }: TripConstellationProps) {
   const compact = size === "compact";
   const cfg = SIZE_CONFIG[size];
-  const [revealStep, setRevealStep] = useState(revealAnimation ? 0 : Infinity);
-  const [showSparkles, setShowSparkles] = useState(false);
+  const reduce = useReducedMotion();
+  const animateReveal = revealAnimation && !reduce;
+  const [showSparkles, setShowSparkles] = useState(!animateReveal);
   const revealFiredRef = useRef(false);
 
-  // Staggered reveal: increment step every 150ms
+  const STAR_STAGGER = 0.15;
+
+  function handleRevealComplete() {
+    if (revealFiredRef.current) return;
+    revealFiredRef.current = true;
+    setShowSparkles(true);
+    onRevealComplete?.();
+  }
+
+  // Fire completion immediately when animation is disabled
   useEffect(() => {
     if (!revealAnimation) return;
-    const total = days.length * 2; // stars + lines
-    if (revealStep >= total) {
-      if (!revealFiredRef.current) {
-        revealFiredRef.current = true;
-        setShowSparkles(true);
-        onRevealComplete?.();
-      }
-      return;
+    if (reduce && !revealFiredRef.current) {
+      handleRevealComplete();
     }
-
-    const timer = setTimeout(() => setRevealStep((s) => s + 1), 150);
-    return () => clearTimeout(timer);
-  }, [revealAnimation, revealStep, days.length, onRevealComplete]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealAnimation, reduce]);
 
   // Color theme based on destination
   const theme = destination ? getConstellationTheme(destination) : null;
@@ -146,7 +149,6 @@ export default function TripConstellation({
     const glowOpacity = Math.min(0.06 + actCount * 0.03, 0.25);
     const isToday = day.date === todayStr;
     const isPast = day.date < todayStr;
-    const visible = revealStep >= i; // stars appear at step i
 
     return {
       cx: positions[i].x,
@@ -158,9 +160,30 @@ export default function TripConstellation({
       isPast,
       day,
       actCount,
-      visible,
     };
   });
+
+  const starVariants: Variants = {
+    hidden: { scale: 0, opacity: 0 },
+    show: { scale: 1, opacity: 1, transition: { type: "spring", stiffness: 260, damping: 20 } },
+  };
+  const lineVariants: Variants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { duration: 0.25 } },
+  };
+  const starsParent: Variants = {
+    hidden: {},
+    show: { transition: { staggerChildren: STAR_STAGGER } },
+  };
+  const linesParent: Variants = {
+    hidden: {},
+    show: {
+      transition: {
+        staggerChildren: STAR_STAGGER,
+        delayChildren: nodes.length * STAR_STAGGER,
+      },
+    },
+  };
 
   // Label position
   const labelX = nodes.reduce((s, n) => s + n.cx, 0) / nodes.length;
@@ -210,12 +233,15 @@ export default function TripConstellation({
         )}
 
         {/* Straight connection lines */}
+        <motion.g
+          variants={linesParent}
+          initial={animateReveal ? "hidden" : false}
+          animate={animateReveal ? "show" : undefined}
+          onAnimationComplete={animateReveal ? handleRevealComplete : undefined}
+        >
         {nodes.map((node, i) => {
           if (i === 0) return null;
           const prev = nodes[i - 1];
-          // Lines appear after both connected stars are visible
-          const lineVisible = revealStep >= nodes.length + i - 1;
-          if (!lineVisible && revealAnimation) return null;
 
           const bothPastOrToday =
             (prev.isPast || prev.isToday) && (node.isPast || node.isToday);
@@ -243,7 +269,7 @@ export default function TripConstellation({
           }
 
           return (
-            <line
+            <motion.line
               key={`line-${i}`}
               x1={prev.cx}
               y1={prev.cy}
@@ -254,20 +280,29 @@ export default function TripConstellation({
               strokeOpacity={strokeOpacity}
               strokeDasharray={dashArray}
               strokeLinecap="round"
-              className={`${className} ${revealAnimation ? "constellation-reveal-line" : ""}`}
+              className={className}
+              variants={animateReveal ? lineVariants : undefined}
             />
           );
         })}
+        </motion.g>
 
         {/* Star nodes */}
+        <motion.g
+          variants={starsParent}
+          initial={animateReveal ? "hidden" : false}
+          animate={animateReveal ? "show" : undefined}
+        >
         {nodes.map((node) => {
-          if (!node.visible && revealAnimation) return null;
-
           return (
-            <g
+            <motion.g
               key={node.day.id}
-              className={`${revealAnimation ? "constellation-reveal-star" : ""} ${onDayClick ? "constellation-star-clickable" : ""}`}
-              style={onDayClick ? { cursor: "pointer", transformOrigin: `${node.cx}px ${node.cy}px` } : undefined}
+              className={onDayClick ? "constellation-star-clickable" : undefined}
+              style={{
+                transformOrigin: `${node.cx}px ${node.cy}px`,
+                cursor: onDayClick ? "pointer" : undefined,
+              }}
+              variants={animateReveal ? starVariants : undefined}
               onClick={onDayClick ? (e) => { e.stopPropagation(); onDayClick(node.day.id); } : undefined}
             >
               {/* Activity density glow */}
@@ -345,9 +380,10 @@ export default function TripConstellation({
                   fillOpacity={node.isToday ? 0.55 : node.isPast ? 0.3 : 0.12}
                 />
               )}
-            </g>
+            </motion.g>
           );
         })}
+        </motion.g>
 
         {/* Sparkle effect on reveal completion */}
         {showSparkles && (() => {
