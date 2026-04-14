@@ -184,7 +184,7 @@ def diversity_rerank(
     """Maximal Marginal Relevance (MMR) re-ranking for category diversity.
 
     Iteratively selects the next place that maximizes:
-        λ × relevance - (1-λ) × max_category_overlap_with_selected
+        λ * relevance - (1-λ) * max_category_overlap_with_selected
 
     Why MMR over simple "max N per category":
     - MMR considers semantic similarity, not just labels

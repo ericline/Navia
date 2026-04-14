@@ -6,7 +6,6 @@ Recommendation pipeline:
 3. Retrieve top candidates via embedding similarity
 4. Re-rank with TensorFlow scoring model (or heuristic fallback)
 5. Apply MMR diversity re-ranking
-6. Fall back to Claude Haiku for destinations with insufficient data
 """
 import json
 import logging
@@ -19,7 +18,6 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-import ai_client
 import arrangement
 import crud
 import models
@@ -172,36 +170,15 @@ def recommend_for_trip(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Generate activity recommendations using custom ML pipeline with Claude fallback."""
+    """Generate activity recommendations via the custom ML pipeline."""
     trip = verify_trip_access(db, trip_id, current_user)
     prefs = crud.user_preferences_from_db(current_user)
 
-    # Try custom ML pipeline first
     recs: list[dict] = []
     try:
         recs = _ml_recommend(trip, prefs, db)
     except Exception as e:
         logger.error("ML recommendation pipeline failed: %s", e, exc_info=True)
-
-    # Fallback to Claude if ML pipeline returned insufficient results
-    if len(recs) < 5:
-        logger.info("ML pipeline returned %d results — falling back to Claude", len(recs))
-        prefs_dict = {
-            "likes": prefs.likes,
-            "dislikes": prefs.dislikes,
-            "max_activity_budget": prefs.max_activity_budget,
-            "max_walking_km": prefs.max_walking_km,
-            "pace": prefs.pace,
-            "dietary": prefs.dietary,
-        }
-        days = (trip.end_date - trip.start_date).days + 1
-        claude_recs = ai_client.recommend_activities(trip.destination, days, prefs_dict)
-        if claude_recs and _MAPBOX_TOKEN:
-            claude_recs = _batch_geocode_recommendations(claude_recs, trip.destination)
-        # Mark Claude results as unverified
-        for r in claude_recs:
-            r["verified"] = False
-        recs = recs + claude_recs
 
     return RecommendationResponse(
         enabled=True,
@@ -314,7 +291,7 @@ def record_feedback(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Record implicit/explicit feedback on a recommendation for model retraining."""
+    """Record implicit/explicit feedback on a recommendation for quality monitoring."""
     verify_trip_access(db, trip_id, current_user)
 
     valid_signals = {"added", "skipped", "scheduled", "deleted", "must_do"}
