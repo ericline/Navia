@@ -222,6 +222,10 @@ def ingest_destination(
             emb_text = _build_embedding_text(parsed)
             embedding = encoder.encode(emb_text).tolist()
             parsed["embedding"] = json.dumps(embedding)
+            # Dual-write to the pgvector cache column on Postgres; skip on SQLite
+            # where the column is mapped to NullType and writes would fail.
+            if db.bind.dialect.name == "postgresql":
+                parsed["embedding_vec"] = embedding
 
             if existing:
                 for key, val in parsed.items():

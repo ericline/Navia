@@ -5,7 +5,7 @@ Configures connection pooling for PostgreSQL (pool_pre_ping, recycle,
 size limits) while leaving SQLite unchanged for local dev and tests.
 """
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./navia.db")
@@ -23,6 +23,18 @@ if not SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
     }
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args, **pool_kwargs)
+
+# Ensure pgvector extension exists on Postgres before any vector ops run.
+# Idempotent — no-op when the extension is already installed.
+if SQLALCHEMY_DATABASE_URL.startswith("postgresql"):
+    @event.listens_for(engine, "connect")
+    def _enable_pgvector(dbapi_conn, _record):
+        cur = dbapi_conn.cursor()
+        try:
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            dbapi_conn.commit()
+        finally:
+            cur.close()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

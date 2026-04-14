@@ -87,19 +87,47 @@ def vector_search(
 ) -> list[tuple[models.Place, float]]:
     """Retrieve the top-K most similar places for a destination.
 
-    Uses in-memory cosine similarity — works on any database backend.
-    Returns list of (Place, similarity_score) tuples sorted by descending
-    similarity.
+    On Postgres, delegates to pgvector's ivfflat cosine-distance index for an
+    O(log N) indexed lookup. On SQLite (and as a safety fallback), uses an
+    in-memory cosine loop over JSON-serialized embeddings.
 
-    Args:
-        db: SQLAlchemy session
-        destination: filter places to this destination
-        query_embedding: 384-d query vector (normalized)
-        limit: max results to return
-
-    Returns:
-        List of (Place, cosine_similarity) tuples.
+    Returns list of (Place, similarity_score) sorted by descending similarity.
     """
+    if db.bind.dialect.name == "postgresql":
+        return _vector_search_pg(db, destination, query_embedding, limit)
+    return _vector_search_inmemory(db, destination, query_embedding, limit)
+
+
+def _vector_search_pg(
+    db: Session,
+    destination: str,
+    query_embedding: np.ndarray,
+    limit: int,
+) -> list[tuple[models.Place, float]]:
+    """pgvector fast path: SQL-level cosine distance ordering via ivfflat index."""
+    from sqlalchemy import select
+
+    q = query_embedding.tolist()
+    distance = models.Place.embedding_vec.cosine_distance(q).label("dist")
+    stmt = (
+        select(models.Place, distance)
+        .where(models.Place.destination == destination)
+        .where(models.Place.embedding_vec.isnot(None))
+        .order_by(distance)
+        .limit(limit)
+    )
+    rows = db.execute(stmt).all()
+    # cosine_distance = 1 - cosine_similarity; convert back to preserve contract.
+    return [(place, 1.0 - float(dist)) for place, dist in rows]
+
+
+def _vector_search_inmemory(
+    db: Session,
+    destination: str,
+    query_embedding: np.ndarray,
+    limit: int,
+) -> list[tuple[models.Place, float]]:
+    """SQLite / fallback path: load all rows, compute cosine in numpy."""
     places = (
         db.query(models.Place)
         .filter(models.Place.destination == destination)
@@ -110,7 +138,6 @@ def vector_search(
     if not places:
         return []
 
-    # Batch deserialize embeddings and compute cosine similarities
     scored: list[tuple[models.Place, float]] = []
     query_norm = query_embedding / (np.linalg.norm(query_embedding) + 1e-10)
 

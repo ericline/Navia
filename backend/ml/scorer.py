@@ -124,8 +124,10 @@ def load_model():
         return None
 
     try:
-        import tensorflow as tf
-        _model = tf.keras.models.load_model(str(_MODEL_PATH))
+        # Load via standalone Keras 3 to avoid tf.keras routing through the
+        # tf-keras (Keras 2) shim, which can't deserialize Keras 3 .keras files.
+        import keras
+        _model = keras.models.load_model(str(_MODEL_PATH))
         logger.info("Loaded scoring model from %s", _MODEL_PATH)
         return _model
     except Exception as e:

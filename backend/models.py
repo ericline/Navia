@@ -15,6 +15,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 
+try:
+    from pgvector.sqlalchemy import Vector
+    # On Postgres: real vector(384) column with pgvector ops.
+    # On SQLite: store as TEXT (unused — the in-memory path reads `embedding`).
+    _VECTOR_COL = Vector(384).with_variant(Text(), "sqlite")
+except ImportError:  # pgvector not installed — fall back to Text everywhere
+    _VECTOR_COL = Text()
+
 from database import Base
 
 
@@ -168,7 +176,8 @@ class Place(Base):
     description = Column(Text, nullable=True)
     photo_reference = Column(String, nullable=True)       # Google photo reference
     types_raw = Column(Text, nullable=True)               # JSON array of raw Google types
-    embedding = Column(Text, nullable=True)               # JSON-serialized 384-d float array
+    embedding = Column(Text, nullable=True)               # JSON-serialized 384-d float array (source of truth)
+    embedding_vec = Column(_VECTOR_COL, nullable=True)    # Postgres-only pgvector cache column
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
