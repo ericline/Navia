@@ -10,6 +10,12 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./navia.db")
 
+# Railway/Heroku-style DATABASE_URL may use the legacy "postgres://" scheme,
+# which SQLAlchemy 2.0 no longer registers as a dialect (boot crash). Normalize
+# it so both the engine and the pgvector listener below initialize correctly.
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 connect_args = {"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
 
 pool_kwargs: dict = {}

@@ -12,9 +12,6 @@ from routers import trips, days, activities, auth, ai
 
 load_dotenv()
 
-# Create tables
-Base.metadata.create_all(bind=engine)
-
 
 def _ensure_new_columns():
     """Idempotent ALTER TABLE ADD COLUMN for fields added after initial deploy.
@@ -43,9 +40,6 @@ def _ensure_new_columns():
                 pass
 
 
-_ensure_new_columns()
-
-
 def _backfill_activity_user_id():
     """Populate activities.user_id for legacy rows by pulling the owning trip's owner_id.
     Idempotent — only updates rows where user_id IS NULL AND trip_id IS NOT NULL."""
@@ -62,7 +56,33 @@ def _backfill_activity_user_id():
         pass
 
 
-_backfill_activity_user_id()
+# Fixed key for serializing startup migrations across replicas (see runner below).
+_MIGRATION_LOCK_KEY = 4827163
+
+
+def _run_startup_migrations():
+    """Create tables and apply idempotent column/data migrations once at boot.
+
+    On Postgres these run inside a transaction-scoped advisory lock so concurrent
+    replica boots (the Hobby plan can run several) can't race on CREATE/ALTER.
+    pg_advisory_xact_lock auto-releases when the transaction ends — even on error
+    or a crashed process — so the lock can never leak. SQLite dev is single-process
+    and just runs them directly.
+    """
+    if engine.dialect.name == "postgresql":
+        with engine.begin() as conn:
+            conn.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": _MIGRATION_LOCK_KEY})
+            Base.metadata.create_all(bind=engine)
+            _ensure_new_columns()
+            _backfill_activity_user_id()
+    else:
+        Base.metadata.create_all(bind=engine)
+        _ensure_new_columns()
+        _backfill_activity_user_id()
+
+
+_run_startup_migrations()
+
 
 app = FastAPI(
     title="Navia API",

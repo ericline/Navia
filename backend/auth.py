@@ -30,9 +30,20 @@ from database import SessionLocal
 # ---------------------------------------------------------------------------
 
 # Override SECRET_KEY with a strong random value in production via env var.
-SECRET_KEY = os.getenv("SECRET_KEY", "navia-dev-secret-change-in-production")
+_DEFAULT_SECRET = "navia-dev-secret-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", _DEFAULT_SECRET)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30  # Tokens are valid for 30 days
+
+# Fail closed in production. A non-SQLite DATABASE_URL means we're deployed, and
+# shipping the baked-in dev secret would let anyone forge valid JWTs. Refuse to
+# boot so the misconfiguration surfaces immediately instead of silently.
+if SECRET_KEY == _DEFAULT_SECRET and not os.getenv("DATABASE_URL", "sqlite").startswith("sqlite"):
+    raise RuntimeError(
+        "SECRET_KEY is using the insecure dev default while a non-SQLite "
+        "DATABASE_URL is configured. Set a strong SECRET_KEY env var in "
+        "production (generate one with: openssl rand -hex 32)."
+    )
 
 # ---------------------------------------------------------------------------
 # Internals

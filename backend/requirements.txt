@@ -6,7 +6,7 @@ torch==2.4.1; sys_platform != "linux"
 
 alembic==1.17.2
 annotated-doc==0.0.4
-bcrypt==4.3.0
+bcrypt==4.0.1  # passlib 1.7.4 reads bcrypt.__about__.__version__ (removed in bcrypt>=4.1); 4.0.1 avoids the warning + 72-byte edge cases
 passlib==1.7.4
 python-jose==3.3.0
 annotated-types==0.7.0
