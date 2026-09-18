@@ -4,8 +4,11 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Activity, Day, ActivityCreate, ActivityUpdate } from "@/lib/api";
-import { X, Star } from "lucide-react";
+import { X, Star, Link2 } from "lucide-react";
 import LocationAutocomplete, { ADDRESS_TYPES } from "@/components/ui/LocationAutocomplete";
+import SaveFromLinkDialog, { type LinkPick } from "@/components/ui/SaveFromLinkDialog";
+import SourceBadge from "@/components/ui/SourceBadge";
+import type { SourcePlatform } from "@/lib/types";
 
 const inputClass =
   "glass-input w-full rounded-xl px-3 py-2 text-sm text-black/85 placeholder:text-black/30";
@@ -26,6 +29,11 @@ interface FormState {
   energy: string;
   mustDo: boolean;
   notes: string;
+  // provenance (set when filled from a link or editing an imported activity)
+  googlePlaceId: string | null;
+  sourceUrl: string | null;
+  sourcePlatform: SourcePlatform | null;
+  externalId: string | null;
 }
 
 const EMPTY_FORM: FormState = {
@@ -41,6 +49,10 @@ const EMPTY_FORM: FormState = {
   energy: "",
   mustDo: false,
   notes: "",
+  googlePlaceId: null,
+  sourceUrl: null,
+  sourcePlatform: null,
+  externalId: null,
 };
 
 interface AddActivityPanelProps {
@@ -67,6 +79,23 @@ export default function AddActivityPanel({
   const [mounted, setMounted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [linkOpen, setLinkOpen] = useState(false);
+
+  function applyLinkPick(pick: LinkPick) {
+    setForm((prev) => ({
+      ...prev,
+      name: pick.name,
+      address: pick.address ?? "",
+      lat: pick.lat ?? null,
+      lng: pick.lng ?? null,
+      category: pick.category ?? prev.category,
+      notes: prev.notes || (pick.notes ?? ""),
+      googlePlaceId: pick.google_place_id ?? null,
+      sourceUrl: pick.source_url,
+      sourcePlatform: pick.source_platform,
+      externalId: pick.external_id ?? null,
+    }));
+  }
 
   const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -100,6 +129,10 @@ export default function AddActivityPanel({
         energy: editingActivity.energy_level || "",
         mustDo: editingActivity.must_do,
         notes: editingActivity.notes || "",
+        googlePlaceId: editingActivity.google_place_id ?? null,
+        sourceUrl: editingActivity.source_url ?? null,
+        sourcePlatform: editingActivity.source_platform ?? null,
+        externalId: editingActivity.external_id ?? null,
       });
     } else {
       setForm({
@@ -145,6 +178,9 @@ export default function AddActivityPanel({
           must_do: form.mustDo && !!startTime,
           start_time: startTime,
           notes: form.notes || undefined,
+          source_url: form.sourceUrl,
+          source_platform: form.sourcePlatform,
+          external_id: form.externalId,
         });
       } else {
         await onCreate({
@@ -161,6 +197,10 @@ export default function AddActivityPanel({
           must_do: form.mustDo && !!startTime,
           start_time: startTime,
           notes: form.notes || undefined,
+          google_place_id: form.googlePlaceId,
+          source_url: form.sourceUrl,
+          source_platform: form.sourcePlatform,
+          external_id: form.externalId,
         });
       }
       setForm(EMPTY_FORM);
@@ -181,6 +221,12 @@ export default function AddActivityPanel({
         if (e.target === e.currentTarget) onClose();
       }}
     >
+      <SaveFromLinkDialog
+        open={linkOpen}
+        onClose={() => setLinkOpen(false)}
+        mode="pick"
+        onPick={applyLinkPick}
+      />
       {/* Desktop: right panel */}
       <div className="hidden sm:block w-full max-w-md h-full bg-warmBg border-l border-black/10 shadow-2xl overflow-y-auto slide-in-right">
         <PanelContent
@@ -198,6 +244,7 @@ export default function AddActivityPanel({
           onCategory={(cat) => {
             if (!form.category) updateField("category", cat);
           }}
+          onFromLink={() => setLinkOpen(true)}
         />
       </div>
 
@@ -218,6 +265,7 @@ export default function AddActivityPanel({
           onCategory={(cat) => {
             if (!form.category) updateField("category", cat);
           }}
+          onFromLink={() => setLinkOpen(true)}
         />
       </div>
     </div>
@@ -236,6 +284,7 @@ interface PanelContentProps {
   updateField: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
   onCoordinates: (coords: [number, number]) => void;
   onCategory: (category: string) => void;
+  onFromLink: () => void;
 }
 
 function PanelContent({
@@ -248,6 +297,7 @@ function PanelContent({
   updateField,
   onCoordinates,
   onCategory,
+  onFromLink,
 }: PanelContentProps) {
   return (
     <div className="p-6 space-y-5">
@@ -271,6 +321,23 @@ function PanelContent({
           ? "Update this activity. Change its day or leave uncharted."
           : "Add an activity to your constellation. Assign it to a day or leave uncharted."}
       </p>
+
+      {!isEditing && (
+        <button
+          type="button"
+          onClick={onFromLink}
+          className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-blue/30 bg-blue/[0.04] hover:bg-blue/[0.08] px-3 py-2 text-xs text-blue transition"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          Fill from a TikTok, Instagram, or Google Maps link
+        </button>
+      )}
+      {form.sourcePlatform && (
+        <div className="flex items-center gap-2 text-[11px] text-black/45">
+          <span>Saved from</span>
+          <SourceBadge platform={form.sourcePlatform} url={form.sourceUrl} />
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-3">
         <div>

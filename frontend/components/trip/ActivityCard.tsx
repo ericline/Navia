@@ -1,9 +1,10 @@
 /** ActivityCard - Displays a single activity with category accent bar, time, and hover actions (edit/delete). */
 "use client";
 
-import { Activity } from "@/lib/api";
+import { Activity, googleMapsLink } from "@/lib/api";
 import { getCategoryKey, CATEGORY_ACCENT_CLASSES, formatTime } from "@/lib/utils";
-import { Star, Clock, DollarSign, Zap, Pencil, Trash2 } from "lucide-react";
+import { Star, Clock, DollarSign, Zap, Pencil, Trash2, ExternalLink } from "lucide-react";
+import SourceBadge from "@/components/ui/SourceBadge";
 
 function getAccentColor(category?: string | null): string {
   return CATEGORY_ACCENT_CLASSES[getCategoryKey(category)];
@@ -27,6 +28,7 @@ export default function ActivityCard({
   const minH = activity.est_duration_minutes
     ? Math.min(40 + activity.est_duration_minutes * 0.3, 80)
     : 40;
+  const mapsUrl = googleMapsLink(activity.lat, activity.lng, activity.google_place_id);
 
   return (
     <div
@@ -44,6 +46,7 @@ export default function ActivityCard({
             )}
             <p className="text-[13px] font-medium text-black/80 leading-snug pr-6 flex items-center gap-1">
               <span>{activity.name}</span>
+              <SourceBadge platform={activity.source_platform} url={activity.source_url} />
               {onToggleMustDo ? (
                 <button
                   type="button"
@@ -83,8 +86,20 @@ export default function ActivityCard({
         </div>
 
         {/* Edit / Delete — absolutely positioned to avoid layout shift */}
-        {(onEdit || onDelete) && (
+        {(onEdit || onDelete || mapsUrl) && (
           <div className="activity-hover-menu absolute top-1.5 right-1.5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition bg-white rounded-lg px-0.5 py-0.5 shadow-sm border border-black/10">
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="rounded p-1 hover:bg-green-50 text-black/55 hover:text-green-700 transition"
+                title="Open in Google Maps"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
             {onEdit && (
               <button
                 onClick={(e) => {

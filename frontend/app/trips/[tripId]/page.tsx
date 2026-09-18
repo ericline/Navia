@@ -10,6 +10,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Plus, Sparkles } from "lucide-react";
 import type { Activity } from "@/lib/types";
 import { TripHeader, TripCalendarStrip, UnscheduledDock, AddActivityPanel, CollaboratorPanel, RecommendationModal, ArrangementBrowser } from "@/components/trip";
+import { GoogleMapsImportModal } from "@/components/imports";
 import { ConstellationRevealOverlay } from "@/components/constellation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTripData } from "@/hooks/useTripData";
@@ -57,6 +58,9 @@ export default function TripDetailPage() {
 
   // Collaborator panel
   const [collabOpen, setCollabOpen] = useState(false);
+
+  // Google Maps list import
+  const [importOpen, setImportOpen] = useState(false);
 
   // AI modals. Initialize recommendOpen from ?recommend=1 synchronously so
   // the deep-link entry never goes through a false→true toggle. The URL flag
@@ -107,6 +111,7 @@ export default function TripDetailPage() {
         onDelete={handleDeleteTrip}
         onFinish={() => setShowReveal(true)}
         onCollaborators={() => setCollabOpen(true)}
+        onImport={() => setImportOpen(true)}
       />
 
       {sortedDays.length > 0 ? (
@@ -186,6 +191,16 @@ export default function TripDetailPage() {
         days={sortedDays}
         preselectedDayId={panelDayId}
         editingActivity={editingActivity}
+      />
+
+      <GoogleMapsImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        defaultTarget={{ kind: "trip", tripId }}
+        onImported={(result) => {
+          if (result.trip && result.trip.id !== tripId) router.push(`/trips/${result.trip.id}`);
+          else void refreshActivities();
+        }}
       />
 
       <CollaboratorPanel

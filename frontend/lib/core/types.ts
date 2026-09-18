@@ -1,6 +1,9 @@
 /**
- * Shared TypeScript interfaces and type definitions for the Navia frontend.
+ * Shared TypeScript interfaces and type definitions for Navia clients.
  * All API request/response shapes and domain models live here.
+ *
+ * `lib/core/` is platform-agnostic (no DOM, no Next.js, no `@/` aliases) so the
+ * Expo app can import it directly (Metro watchFolders → ../frontend/lib/core).
  */
 
 // ---------- Trip ----------
@@ -92,6 +95,9 @@ export interface Activity {
   notes?: string | null;
   position: number;
   google_place_id?: string | null;
+  source_url?: string | null;
+  source_platform?: SourcePlatform | null;
+  external_id?: string | null;
 }
 
 export interface ActivityCreate {
@@ -112,6 +118,9 @@ export interface ActivityCreate {
   start_time?: string | null;
   notes?: string | null;
   google_place_id?: string | null;
+  source_url?: string | null;
+  source_platform?: SourcePlatform | null;
+  external_id?: string | null;
 }
 
 export interface ActivityUpdate {
@@ -130,6 +139,9 @@ export interface ActivityUpdate {
   notes?: string | null;
   unschedule?: boolean;
   to_bucket?: boolean;
+  source_url?: string | null;
+  source_platform?: SourcePlatform | null;
+  external_id?: string | null;
 }
 
 // ---------- User ----------
@@ -233,3 +245,77 @@ export interface Collaborator {
 
 // ---------- Bucket List ----------
 // Bucket list items are just Activities with trip_id=null. Use `Activity` / `ActivityCreate`.
+
+// ---------- Provenance (share sheet / imports) ----------
+
+export type SourcePlatform = "tiktok" | "instagram" | "google_maps" | "manual";
+
+// ---------- Link resolve ----------
+
+export interface PlaceCandidate {
+  google_place_id: string | null;
+  name: string;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  category?: string | null;
+  rating?: number | null;
+  rating_count?: number | null;
+  price_level?: number | null;
+  photo_reference?: string | null;
+  google_maps_uri?: string | null;
+  confidence: "high" | "medium" | "low";
+  matched_text?: string | null;
+}
+
+export interface LinkResolveResponse {
+  platform: "tiktok" | "instagram" | "google_maps" | "unknown";
+  link_kind: "video" | "place" | "list" | "unknown";
+  source_url: string;
+  external_id?: string | null;
+  title?: string | null;
+  caption?: string | null;
+  thumbnail_url?: string | null;
+  hint_city?: string | null;
+  mentions: string[];
+  candidates: PlaceCandidate[];
+  warnings: string[];
+}
+
+// ---------- Google Maps import / batch create ----------
+
+export interface ImportItem {
+  name: string;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  google_place_id?: string | null;
+  category?: string | null;
+  notes?: string | null;
+  source_url?: string | null;
+  external_id?: string | null;
+  resolved: boolean;
+  photo_reference?: string | null;
+}
+
+export interface ImportPreview {
+  list_name?: string | null;
+  source: "takeout_csv" | "takeout_json" | "kml" | "zip" | "shared_link";
+  items: ImportItem[];
+  warnings: string[];
+}
+
+/** Exactly one of bucket / trip_id / new_trip. */
+export type BatchTarget =
+  | { bucket: true }
+  | { trip_id: number; day_id?: number | null }
+  | { new_trip: TripCreate };
+
+export interface ActivityBatchResult {
+  trip: Trip | null;
+  created: Activity[];
+  skipped_duplicates: number;
+}
+
+export type ExportScope = { scope: "bucket" } | { scope: "trip"; trip_id: number };
+export type ExportFormat = "kml" | "csv";

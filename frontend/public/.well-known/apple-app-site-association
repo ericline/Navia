@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["TEAMID.com.ericlin.navia"],
+        "components": [
+          { "/": "/trips/*", "comment": "Trip detail and day maps open in the app" },
+          { "/": "/constellation/*", "comment": "Public constellation view" },
+          { "/": "/save", "comment": "Save-from-link handoff (?url=...)" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.com.ericlin.navia"]
+  }
+}

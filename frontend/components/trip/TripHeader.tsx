@@ -3,16 +3,18 @@
 
 import { Trip } from "@/lib/api";
 import { formatDate, formatDestination } from "@/lib/utils";
-import { MapPin, Calendar, Trash2, CheckCircle, Users } from "lucide-react";
+import { MapPin, Calendar, Trash2, CheckCircle, Users, Upload } from "lucide-react";
+import { ExportMenu } from "@/components/imports";
 
 interface TripHeaderProps {
   trip: Trip;
   onDelete: () => void;
   onFinish: () => void;
   onCollaborators?: () => void;
+  onImport?: () => void;
 }
 
-export default function TripHeader({ trip, onDelete, onFinish, onCollaborators }: TripHeaderProps) {
+export default function TripHeader({ trip, onDelete, onFinish, onCollaborators, onImport }: TripHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
@@ -37,6 +39,17 @@ export default function TripHeader({ trip, onDelete, onFinish, onCollaborators }
         <span className="rounded-full border border-black/10 px-3 py-1.5 text-xs text-black/35">
           {trip.timezone}
         </span>
+        {onImport && (
+          <button
+            onClick={onImport}
+            className="flex items-center gap-1.5 rounded-xl border border-black/10 hover:bg-black/5 px-3 py-1.5 text-xs text-black/50 transition"
+            title="Import a Google Maps list into this trip"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import
+          </button>
+        )}
+        <ExportMenu scope={{ scope: "trip", trip_id: trip.id }} />
         {onCollaborators && (
           <button
             onClick={onCollaborators}
