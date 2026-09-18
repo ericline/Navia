@@ -41,3 +41,4 @@ tensorflow==2.18.0
 tf-keras==2.18.0
 numpy>=1.26
 pgvector==0.3.6
+anthropic==0.40.0  # Haiku caption → place-name extraction (services/link_resolver/caption_extract.py)

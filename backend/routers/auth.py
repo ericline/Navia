@@ -47,6 +47,17 @@ def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/refresh", response_model=schemas.Token)
+def refresh_token(current_user: models.User = Depends(get_current_user)):
+    """Exchange a valid (unexpired) token for a fresh 30-day one. Lets the mobile
+    app extend sessions silently without storing the password."""
+    return schemas.Token(
+        access_token=create_access_token(current_user.id),
+        token_type="bearer",
+        user=crud.user_to_out(current_user),
+    )
+
+
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user: models.User = Depends(get_current_user)):
     """Return the authenticated user's profile and preferences."""

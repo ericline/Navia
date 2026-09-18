@@ -157,6 +157,11 @@ class Activity(Base):
     position = Column(Integer, nullable=True, default=0)
     google_place_id = Column(String, nullable=True, index=True)  # links activity back to Places row for dedupe
 
+    # Provenance — where this activity came from (share sheet / import). All nullable.
+    source_url = Column(String, nullable=True)        # original TikTok/Instagram/Google Maps link
+    source_platform = Column(String, nullable=True)   # tiktok|instagram|google_maps|manual
+    external_id = Column(String, nullable=True, index=True)  # video id / shortcode / Maps CID, for re-share dedupe
+
     # Relationships
     trip = relationship("Trip", back_populates="activities")
     day = relationship("Day", back_populates="activities")

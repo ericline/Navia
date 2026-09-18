@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 TravelStyle = Literal["adventurous", "cultural", "culinary", "relaxed", "nightlife"]
 GroupType = Literal["solo", "couple", "family", "friends"]
+SourcePlatform = Literal["tiktok", "instagram", "google_maps", "manual"]
 
 
 class UserPreferences(BaseModel):
@@ -145,6 +146,10 @@ class ActivityBase(BaseModel):
     notes: Optional[str] = Field(None, max_length=5000)
     position: int = 0
     google_place_id: Optional[str] = Field(None, max_length=200)
+    # Provenance (share sheet / imports)
+    source_url: Optional[str] = Field(None, max_length=2000)
+    source_platform: Optional[SourcePlatform] = None
+    external_id: Optional[str] = Field(None, max_length=200)
 
 
 class ActivityCreate(ActivityBase):
@@ -170,6 +175,9 @@ class ActivityUpdate(BaseModel):
     unschedule: bool = False
     # sentinel to push an activity back to the user's bucket list (trip_id=null)
     to_bucket: bool = False
+    source_url: Optional[str] = Field(None, max_length=2000)
+    source_platform: Optional[SourcePlatform] = None
+    external_id: Optional[str] = Field(None, max_length=200)
 
 
 class Activity(ActivityBase):
@@ -231,3 +239,96 @@ class CollaboratorOut(BaseModel):
     user_name: str
     user_email: str
     role: str
+
+
+# ---------- Batch Create (imports, multi-save) ----------
+
+class BatchTarget(BaseModel):
+    """Exactly one of: bucket=True | trip_id (+ optional day_id) | new_trip."""
+    bucket: bool = False
+    trip_id: Optional[int] = None
+    day_id: Optional[int] = None
+    new_trip: Optional[TripCreate] = None
+
+    @model_validator(mode="after")
+    def exactly_one_target(self):
+        chosen = sum([bool(self.bucket), self.trip_id is not None, self.new_trip is not None])
+        if chosen != 1:
+            raise ValueError("Provide exactly one of bucket, trip_id, or new_trip")
+        if self.day_id is not None and self.trip_id is None:
+            raise ValueError("day_id requires trip_id")
+        return self
+
+
+class ActivityBatchCreate(BaseModel):
+    target: BatchTarget
+    items: list[ActivityCreate] = Field(..., min_length=1, max_length=500)
+
+
+class ActivityBatchResult(BaseModel):
+    trip: Optional[Trip] = None
+    created: list[Activity]
+    skipped_duplicates: int = 0
+
+
+# ---------- Link Resolve (TikTok / Instagram / Google Maps place links) ----------
+
+class PlaceCandidateOut(BaseModel):
+    google_place_id: Optional[str] = None
+    name: str
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    category: Optional[str] = None
+    rating: Optional[float] = None
+    rating_count: Optional[int] = None
+    price_level: Optional[int] = None
+    photo_reference: Optional[str] = None
+    google_maps_uri: Optional[str] = None
+    confidence: Literal["high", "medium", "low"] = "medium"
+    matched_text: Optional[str] = None  # the caption mention / POI name this came from
+
+
+class LinkResolveRequest(BaseModel):
+    url: str = Field(..., min_length=8, max_length=2000)
+
+
+class LinkResolveResponse(BaseModel):
+    platform: Literal["tiktok", "instagram", "google_maps", "unknown"]
+    link_kind: Literal["video", "place", "list", "unknown"]
+    source_url: str
+    external_id: Optional[str] = None
+    title: Optional[str] = None
+    caption: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    hint_city: Optional[str] = None
+    mentions: list[str] = []          # place names we think the caption refers to
+    candidates: list[PlaceCandidateOut] = []
+    warnings: list[str] = []          # human-readable notes (e.g. "Instagram page not readable")
+
+
+# ---------- Google Maps Import ----------
+
+class ImportItemOut(BaseModel):
+    name: str
+    address: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    google_place_id: Optional[str] = None
+    category: Optional[str] = None
+    notes: Optional[str] = None
+    source_url: Optional[str] = None
+    external_id: Optional[str] = None
+    resolved: bool = False
+    photo_reference: Optional[str] = None
+
+
+class ImportPreviewResponse(BaseModel):
+    list_name: Optional[str] = None
+    source: Literal["takeout_csv", "takeout_json", "kml", "zip", "shared_link"]
+    items: list[ImportItemOut]
+    warnings: list[str] = []
+
+
+class ImportLinkRequest(BaseModel):
+    url: str = Field(..., min_length=8, max_length=2000)

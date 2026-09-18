@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from sqlalchemy import inspect, text
 
 from database import Base, engine
-from routers import trips, days, activities, auth, ai
+from routers import trips, days, activities, auth, ai, links, imports
 
 load_dotenv()
 
@@ -25,6 +25,9 @@ def _ensure_new_columns():
         ("days", "day_end", "TIME"),
         ("activities", "google_place_id", "VARCHAR"),
         ("activities", "user_id", "INTEGER"),
+        ("activities", "source_url", "VARCHAR"),
+        ("activities", "source_platform", "VARCHAR"),
+        ("activities", "external_id", "VARCHAR"),
     ]
     with engine.begin() as conn:
         for table, column, coltype in additions:
@@ -113,3 +116,5 @@ app.include_router(trips.router)
 app.include_router(days.router)
 app.include_router(activities.router)
 app.include_router(ai.router)
+app.include_router(links.router)
+app.include_router(imports.router)

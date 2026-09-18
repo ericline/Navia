@@ -64,6 +64,58 @@ def reorder_activities(
     return crud.get_activities_for_trip(db, trip_id)
 
 
+@router.post("/batch", response_model=schemas.ActivityBatchResult)
+def create_activities_batch(
+    payload: schemas.ActivityBatchCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Create many activities at once into the bucket, an existing trip, or a brand-new trip.
+    Used by Google Maps imports and multi-select saves. Duplicates (same google_place_id or
+    external_id already in the target scope) are skipped, not errors."""
+    target = payload.target
+    trip_out = None
+    trip_id: int | None = None
+    day_id: int | None = None
+
+    if target.new_trip is not None:
+        trip = crud.create_trip(db=db, trip=target.new_trip, owner_id=current_user.id)
+        crud.generate_days_for_trip(db, trip)
+        trip_id = trip.id
+        trip_out = crud.trip_to_response(trip)
+    elif target.trip_id is not None:
+        trip = verify_trip_access(db, target.trip_id, current_user)
+        trip_id = trip.id
+        trip_out = crud.trip_to_response(trip)
+        if target.day_id is not None:
+            day = crud.get_day(db, day_id=target.day_id)
+            if not day or day.trip_id != trip_id:
+                raise HTTPException(status_code=400, detail="Day does not belong to the given trip")
+            day_id = day.id
+
+    created, skipped = crud.create_activities_bulk(
+        db, payload.items, user_id=current_user.id, trip_id=trip_id, day_id=day_id
+    )
+
+    # Same profile-learning hook as single create: log "added" for known Places rows.
+    gpids = [a.google_place_id for a in created if a.google_place_id]
+    if gpids:
+        known = {
+            p.google_place_id: p.id
+            for p in db.query(models.Place).filter(models.Place.google_place_id.in_(gpids)).all()
+        }
+        for a in created:
+            pid = known.get(a.google_place_id or "")
+            if pid is not None:
+                db.add(models.RecommendationFeedback(
+                    user_id=current_user.id, place_id=pid, trip_id=a.trip_id, signal="added",
+                ))
+        if known:
+            db.commit()
+
+    return schemas.ActivityBatchResult(trip=trip_out, created=created, skipped_duplicates=skipped)
+
+
 @router.get("/bucket", response_model=List[schemas.Activity])
 def read_bucket_activities(
     db: Session = Depends(get_db),

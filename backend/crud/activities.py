@@ -77,11 +77,81 @@ def create_activity(db: Session, activity: schemas.ActivityCreate, user_id: int 
         notes=activity.notes,
         position=max_pos + 1,
         google_place_id=activity.google_place_id,
+        source_url=activity.source_url,
+        source_platform=activity.source_platform,
+        external_id=activity.external_id,
     )
     db.add(db_activity)
     db.commit()
     db.refresh(db_activity)
     return db_activity
+
+
+def create_activities_bulk(
+    db: Session,
+    items: list[schemas.ActivityCreate],
+    *,
+    user_id: int,
+    trip_id: int | None,
+    day_id: int | None = None,
+) -> tuple[list[models.Activity], int]:
+    """Insert many activities into one scope (a trip or the user's bucket) in a single
+    transaction. Positions continue from the scope's current max. Items whose
+    google_place_id or external_id already exists in the scope are skipped.
+    Returns (created_rows, skipped_count)."""
+    if trip_id is not None:
+        scope = db.query(models.Activity).filter(models.Activity.trip_id == trip_id)
+    else:
+        scope = db.query(models.Activity).filter(
+            models.Activity.user_id == user_id, models.Activity.trip_id.is_(None)
+        )
+    existing = scope.with_entities(
+        models.Activity.google_place_id, models.Activity.external_id, models.Activity.position
+    ).all()
+    seen_gpid = {g for g, _, _ in existing if g}
+    seen_ext = {e for _, e, _ in existing if e}
+    max_pos = max((p or 0 for _, _, p in existing), default=0)
+
+    created: list[models.Activity] = []
+    skipped = 0
+    for item in items:
+        if (item.google_place_id and item.google_place_id in seen_gpid) or (
+            item.external_id and item.external_id in seen_ext
+        ):
+            skipped += 1
+            continue
+        if item.google_place_id:
+            seen_gpid.add(item.google_place_id)
+        if item.external_id:
+            seen_ext.add(item.external_id)
+        max_pos += 1
+        row = models.Activity(
+            trip_id=trip_id,
+            day_id=day_id if trip_id is not None else None,
+            user_id=user_id,
+            name=item.name,
+            category=item.category,
+            address=item.address,
+            lat=item.lat,
+            lng=item.lng,
+            est_duration_minutes=item.est_duration_minutes,
+            cost_estimate=item.cost_estimate,
+            energy_level=item.energy_level,
+            must_do=item.must_do if item.start_time else False,
+            start_time=item.start_time,
+            notes=item.notes,
+            position=max_pos,
+            google_place_id=item.google_place_id,
+            source_url=item.source_url,
+            source_platform=item.source_platform,
+            external_id=item.external_id,
+        )
+        db.add(row)
+        created.append(row)
+    db.commit()
+    for row in created:
+        db.refresh(row)
+    return created, skipped
 
 
 def update_activity(db: Session, activity_id: int, update: schemas.ActivityUpdate):
@@ -111,6 +181,7 @@ def update_activity(db: Session, activity_id: int, update: schemas.ActivityUpdat
         "name", "category", "address", "lat", "lng",
         "est_duration_minutes", "cost_estimate", "energy_level", "must_do",
         "start_time", "notes", "position",
+        "source_url", "source_platform", "external_id",
     ]
     for field in updatable_fields:
         if field in provided:
